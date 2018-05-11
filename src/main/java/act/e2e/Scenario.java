@@ -1,0 +1,485 @@
+package act.e2e;
+
+/*-
+ * #%L
+ * ACT E2E Plugin
+ * %%
+ * Copyright (C) 2018 ActFramework
+ * %%
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ * #L%
+ */
+
+import act.Act;
+import act.app.App;
+import act.e2e.req_modifier.RequestModifier;
+import act.e2e.util.CookieStore;
+import act.e2e.verifier.Verifier;
+import act.util.LogSupport;
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONArray;
+import com.alibaba.fastjson.JSONObject;
+import okhttp3.*;
+import org.osgl.$;
+import org.osgl.exception.UnexpectedException;
+import org.osgl.http.H;
+import org.osgl.util.Codec;
+import org.osgl.util.E;
+import org.osgl.util.IO;
+import org.osgl.util.S;
+
+import java.io.IOException;
+import java.net.URL;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.regex.Pattern;
+
+public class Scenario extends LogSupport {
+
+    private static final RequestBody EMPTY_BODY = RequestBody.create(null, "");
+
+    private class RequestBuilder {
+
+        private Request.Builder builder;
+
+        RequestBuilder(RequestSpec requestSpec) {
+            builder = new Request.Builder();
+            for (Map.Entry<String, String> entry : requestSpec.headers.entrySet()) {
+                builder.addHeader(entry.getKey(), entry.getValue());
+            }
+            for (RequestModifier modifier : requestSpec.modifiers) {
+                modifier.modifyRequest(builder);
+            }
+            String url = S.concat("http://localhost:", port, S.ensure(processStringSubstitution(requestSpec.url)).startWith("/"));
+            boolean hasParams = !requestSpec.params.isEmpty();
+            if (hasParams) {
+                processParamSubstitution(requestSpec.params);
+            }
+            switch (requestSpec.method) {
+                case GET:
+                case HEAD:
+                    if (hasParams) {
+                        S.Buffer buf = S.buffer(url);
+                        if (!url.contains("?")) {
+                            buf.a("?__nil__=nil");
+                        }
+                        for (Map.Entry<String, Object> entry : requestSpec.params.entrySet()) {
+                            String paramName = Codec.encodeUrl(entry.getKey());
+                            String paramVal = Codec.encodeUrl(S.string(entry.getValue()));
+                            buf.a("&").a(paramName).a("=").a(paramVal);
+                        }
+                        url = buf.toString();
+                    }
+                case DELETE:
+                    builder.method(requestSpec.method.name(), null);
+                    break;
+                case POST:
+                case PUT:
+                case PATCH:
+                    RequestBody body = EMPTY_BODY;
+                    String jsonBody = verifyJsonBody(requestSpec.jsonBody);
+                    if (S.notBlank(requestSpec.jsonBody)) {
+                        body = RequestBody.create(MediaType.parse("application/json"), jsonBody);
+                    } else if (hasParams) {
+                        MultipartBody.Builder formBuilder = new MultipartBody.Builder();
+                        for (Map.Entry<String, Object> entry : requestSpec.params.entrySet()) {
+                            formBuilder.addFormDataPart(entry.getKey(), S.string(entry.getValue()));
+                        }
+                        body = formBuilder.build();
+                    }
+                    builder.method((requestSpec.method.name()), body);
+                    break;
+                default:
+                    throw E.unexpected("HTTP method not supported: " + requestSpec.method);
+            }
+            builder.url(url);
+        }
+
+        private void processParamSubstitution(Map<String, Object> params) {
+            for (Map.Entry<String, Object> entry : params.entrySet()) {
+                Object val = entry.getValue();
+                if (val instanceof String) {
+                    String sVal = (String) val;
+                    if (sVal.startsWith("last:")) {
+                        String ref = sVal.substring(5);
+                        entry.setValue(getLastVal(ref));
+                    }
+                }
+            }
+        }
+
+        private Object getLastVal(String ref) {
+            Object val;
+            if (S.blank(ref)) {
+                val = lastResponse.get();
+            } else {
+                Object lastObj = lastResponse.get();
+                if (lastObj instanceof JSONArray) {
+                    if (S.isInt(ref)) {
+                        val = ((JSONArray) lastObj).get(Integer.parseInt(ref));
+                    } else {
+                        throw E.unexpected("Invalid last reference, expect number, found: " + ref);
+                    }
+                } else {
+                    JSONObject json = (JSONObject) lastObj;
+                    val = json.get(ref);
+                }
+            }
+            return val;
+        }
+
+        private String processStringSubstitution(String s) {
+            int n = s.indexOf("${");
+            if (n < 0) {
+                return s;
+            }
+            int a = 0;
+            int z = n;
+            S.Buffer buf = S.buffer();
+            while (true) {
+                buf.append(s.substring(a, z));
+                n = s.indexOf("}", z);
+                a = n;
+                E.illegalArgumentIf(n < -1, "Invalid string: " + s);
+                String part = s.substring(z + 2, a);
+                E.illegalArgumentIf(!part.startsWith("last:"), "Unknown substitution: " + s);
+                String payload = part.substring(5);
+                buf.append(getLastVal(payload));
+                n = s.indexOf("${", a);
+                if (n < 0) {
+                    buf.append(s.substring(a + 1));
+                    return buf.toString();
+                }
+                z = n;
+            }
+        }
+
+        Request build() {
+            return builder.build();
+        }
+
+        private String verifyJsonBody(String jsonBody) {
+            final String origin = jsonBody;
+            if (S.blank(jsonBody)) {
+                return "";
+            }
+            if (jsonBody.startsWith("resource:")) {
+                jsonBody = S.ensure(jsonBody.substring(9).trim()).startWith("/");
+                URL url = Act.getResource(jsonBody);
+                E.unexpectedIf(null == url, "Cannot find JSON body: " + origin);
+                jsonBody = IO.read(url).toString();
+            }
+            try {
+                JSON.parse(jsonBody);
+            } catch (Exception e) {
+                E.unexpected(e, "Invalid JSON body: " + origin);
+            }
+            return jsonBody;
+        }
+
+    }
+
+    private String modelPackage;
+
+    private int port = 5460;
+
+    private OkHttpClient http;
+
+    private CookieStore cookieStore;
+
+    private App app;
+
+
+    public String name;
+    public String description;
+    public List<String> fixtures = new ArrayList<>();
+    public List<Scenario> depends = new ArrayList<>();
+    public List<Interaction> interactions = new ArrayList<>();
+    public boolean finished;
+    public $.Var<Object> lastResponse = $.var();
+
+
+    public Scenario() {
+        app = Act.app();
+        if (null != app) {
+            port = app.config().httpPort();
+        }
+    }
+
+    public void start() {
+        if (finished) {
+            return;
+        }
+        long ms = $.ms();
+        printBanner();
+        prepareHttp();
+        reset();
+        run();
+        printFooter($.ms() - ms);
+    }
+
+    public void clearSession() {
+        cookieStore().clear();
+    }
+
+    public void clearFixtures() {
+        run(RequestSpec.RS_CLEAR_FIXTURE, null, "Clear fixtures");
+    }
+
+    private void createFixtures() {
+        if (fixtures.isEmpty()) {
+            return;
+        }
+        RequestSpec req = RequestSpec.loadFixtures(fixtures);
+        run(req, null, "Create fixtures");
+    }
+
+    private void prepareHttp() {
+        http = new OkHttpClient.Builder().cookieJar(cookieStore()).build();
+    }
+
+    private void reset() {
+        clearSession();
+        clearFixtures();
+    }
+
+    private void run() {
+        try {
+            runDependents();
+            runInteractions();
+        } catch ($.Break b) {
+            Exception e = b.get();
+            error(e, "error running scenario: " + name);
+        } catch (Exception e) {
+            error(e, "error running scenario: " + name);
+        }
+        finished = true;
+    }
+
+    private void runDependents() {
+        for (Scenario dependent : depends) {
+            dependent.run();
+        }
+    }
+
+    private void runInteractions() {
+        for (Interaction interaction : interactions) {
+            run(interaction);
+        }
+    }
+
+    private void run(Interaction interaction) {
+        if (null != interaction.preAction) {
+            interaction.preAction.run(this);
+        }
+        run(interaction.request, interaction.response, interaction.description);
+        if (null != interaction.preAction) {
+            interaction.preAction.run(this);
+        }
+    }
+
+    private void printBanner() {
+        printDoubleDashedLine();
+        info(name.toUpperCase());
+        println();
+        info(S.string(description));
+        printDashedLine();
+    }
+
+    private void printFooter(long duration) {
+        printDashedLine();
+        info("It takes %ss to run this scenario.\n", duration / 1000);
+    }
+
+    private synchronized CookieStore cookieStore() {
+        if (null == cookieStore) {
+            App app = Act.app();
+            cookieStore = null == app ? new CookieStore() : app.getInstance(CookieStore.class);
+        }
+        return cookieStore;
+    }
+
+    private void run(RequestSpec req, ResponseSpec rs, String format, Object... args) {
+        Request req0 = new RequestBuilder(req).build();
+        try {
+            Response rs0 = http.newCall(req0).execute();
+            verify(rs0, rs);
+            info("[PASS] " + S.fmt(format, args));
+        } catch (NullPointerException e) {
+            error("[FAIL] " + S.fmt(format, args));
+            $.breakOut(e);
+        } catch (UnexpectedException e) {
+            error("[FAIL] " + S.fmt(format, args));
+            $.breakOut(e);
+        } catch (IOException e) {
+            throw E.ioException(e);
+        }
+    }
+
+    private void verify(Response rs, ResponseSpec spec) throws IOException {
+        if (null == spec) {
+            E.unexpectedIfNot(rs.isSuccessful());
+            return;
+        }
+        verifyStatus(rs, spec);
+        verifyHeaders(rs, spec);
+        verifyData(rs, spec);
+    }
+
+    private void verifyStatus(Response rs, ResponseSpec spec) {
+        H.Status expectedStatus = spec.status;
+        if (null == expectedStatus) {
+            E.unexpectedIfNot(rs.isSuccessful(), "Error status returned");
+        } else {
+            E.unexpectedIfNot(rs.code() == expectedStatus.code(), "expected status: %s, found status: %s", expectedStatus.code(), rs.code());
+        }
+    }
+
+    private void verifyHeaders(Response rs, ResponseSpec spec) {
+        for (Map.Entry<String, Object> entry : spec.headers.entrySet()) {
+            String headerName = entry.getKey();
+            String headerVal = rs.header(headerName);
+            try {
+                verifyValue(headerVal, entry.getValue());
+            } catch (Exception e) {
+                E.unexpected(e, "failed verify header[%s]", headerName);
+            }
+        }
+    }
+
+    private void verifyData(Response rs, ResponseSpec spec) throws IOException {
+        String bodyString;
+        if (null != spec.text) {
+            bodyString = rs.body().string();
+            lastResponse.set(bodyString);
+            verifyValue(bodyString, spec.text);
+        } else if (null != spec.json) {
+            bodyString = S.string(rs.body().string()).trim();
+            if (bodyString.startsWith("[")) {
+                JSONArray array = JSON.parseArray(bodyString);
+                lastResponse.set(array);
+                verifyJsonArray(array, spec.json);
+            } else if (bodyString.startsWith("{")) {
+                JSONObject obj = JSON.parseObject(bodyString);
+                lastResponse.set(obj);
+                verifyJsonObject(obj, spec.json);
+            } else {
+                E.unexpected("Unknown JSON string: \n%s", bodyString);
+            }
+        }
+    }
+
+    private void verifyJsonArray(JSONArray array, Map<String, Object> jsonSpec) {
+        for (Map.Entry<String, Object> entry : jsonSpec.entrySet()) {
+            String key = entry.getKey();
+            Object value;
+            if ("size".equals(key) || "len".equals(key) || "length".equals(key)) {
+                value = array.size();
+            } else if ("toString".equals(key) || "string".equals(key) || "str".equals(key)) {
+                value = JSON.toJSONString(array);
+            } else if (S.isInt(key)) {
+                int id = Integer.parseInt(key);
+                value = array.get(id);
+            } else {
+                throw E.unexpected("Unknown attribute of array verification: %s", key);
+            }
+            verifyValue(value, entry.getValue());
+        }
+    }
+
+    private void verifyJsonObject(JSONObject obj, Map<String, Object> jsonSpec) {
+        for (Map.Entry<String, Object> entry : jsonSpec.entrySet()) {
+            String key = entry.getKey();
+            Object value = $.getProperty(obj, key);
+            verifyValue(value, entry.getValue());
+        }
+    }
+
+    private void verifyValue(Object value, Object test) {
+        if (test instanceof List) {
+            verifyValue_(value, (List) test);
+        } else {
+            if ($.eq(value, test)) {
+                return;
+            } else if (test instanceof String) {
+                if (null != value && ("*".equals(test) || "...".equals(test) || "<any>".equals(test))) {
+                    return;
+                }
+                try {
+                    Pattern p = Pattern.compile((String) test);
+                    E.unexpectedIfNot(p.matcher((String) value).matches(), "Cannot verify value[%s] with test [%s]", value, test);
+                } catch (Exception e) {
+                    // ignore
+                }
+                Verifier v = tryLoadVerifier((String) test);
+                if (null != v) {
+                    v.verify(value);
+                }
+            }
+            E.unexpected("Cannot verify value[%s] with test [%s]", value, test);
+        }
+    }
+
+    private void verifyValue_(Object value, List tests) {
+        // try to do the literal match
+        if (value instanceof List) {
+            List found = (List) value;
+            boolean ok = found.size() == tests.size();
+            if (ok) {
+                for (int i = 0 ; i < found.size(); ++i) {
+                    Object foundElement = found.get(i);
+                    Object testElement = tests.get(i);
+                    if ($.ne(foundElement, testElement)) {
+                        ok = false;
+                        break;
+                    }
+                }
+            }
+            if (ok) {
+                return;
+            }
+        }
+        // now try verifiers
+        for (Object test : tests) {
+            E.unexpectedIfNot(test instanceof Map, "Cannot verify value[%s] against test[%s]", value, tests);
+            Map<?, ?> map = (Map) test;
+            E.unexpectedIfNot(map.size() == 1, "Cannot verify value[%s] against test[%s]", value, tests);
+            Verifier v = $.convert(map).to(Verifier.class);
+            E.unexpectedIf(null == v, "Cannot verify value[%s] against test[%s]", value, tests);
+            v.verify(value);
+        }
+    }
+
+    private Class<?> tryLoadClass(String name) {
+        try {
+            return null != app ? app.classForName(name) : $.classForName(name);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private Verifier tryLoadVerifier(String name) {
+        Class<?> c = tryLoadClass(name);
+        if (null != c) {
+            if (Verifier.class.isAssignableFrom(c)) {
+                return (Verifier) (null != app ? app.getInstance(c) : $.newInstance(c));
+            } else {
+                throw new UnexpectedException("Class not supported: " + name);
+            }
+        }
+        return null;
+    }
+
+
+}
