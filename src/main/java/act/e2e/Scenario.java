@@ -22,8 +22,10 @@ package act.e2e;
 
 import act.Act;
 import act.app.App;
+import act.e2e.macro.Macro;
 import act.e2e.req_modifier.RequestModifier;
 import act.e2e.util.CookieStore;
+import act.e2e.util.ScenarioLoader;
 import act.e2e.verifier.Verifier;
 import act.util.LogSupport;
 import com.alibaba.fastjson.JSON;
@@ -45,7 +47,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 
-public class Scenario extends LogSupport {
+public class Scenario extends LogSupport implements ScenarioPart {
 
     private static final RequestBody EMPTY_BODY = RequestBody.create(null, "");
 
@@ -202,25 +204,39 @@ public class Scenario extends LogSupport {
 
 
     public String name;
+    public Boolean json;
     public String description;
     public List<String> fixtures = new ArrayList<>();
-    public List<Scenario> depends = new ArrayList<>();
+    public List<String> depends = new ArrayList<>();
     public List<Interaction> interactions = new ArrayList<>();
     public boolean finished;
     public $.Var<Object> lastResponse = $.var();
 
+    private ScenarioLoader loader;
 
     public Scenario() {
         app = Act.app();
         if (null != app) {
             port = app.config().httpPort();
+            json = app.config().get("act.e2e.json");
         }
     }
 
-    public void start() {
+    @Override
+    public void validate() throws UnexpectedException {
+        E.unexpectedIf(interactions.isEmpty(), "No interactions defined");
+        E.unexpectedIf(S.blank(name), "name is blank");
+        for (Interaction interaction : interactions) {
+            interaction.validate();
+        }
+    }
+
+    public void start(ScenarioLoader loader) {
         if (finished) {
             return;
         }
+        this.loader = loader;
+        validate();
         long ms = $.ms();
         printBanner();
         prepareHttp();
@@ -268,8 +284,8 @@ public class Scenario extends LogSupport {
     }
 
     private void runDependents() {
-        for (Scenario dependent : depends) {
-            dependent.run();
+        for (String dependent : depends) {
+            loader.get(dependent).run();
         }
     }
 
@@ -280,12 +296,12 @@ public class Scenario extends LogSupport {
     }
 
     private void run(Interaction interaction) {
-        if (null != interaction.preAction) {
-            interaction.preAction.run(this);
+        for (Macro macro: interaction.preActions) {
+            macro.run(this);
         }
         run(interaction.request, interaction.response, interaction.description);
-        if (null != interaction.preAction) {
-            interaction.preAction.run(this);
+        for (Macro macro: interaction.postActions) {
+            macro.run(this);
         }
     }
 
@@ -334,7 +350,7 @@ public class Scenario extends LogSupport {
         }
         verifyStatus(rs, spec);
         verifyHeaders(rs, spec);
-        verifyData(rs, spec);
+        verifyBody(rs, spec);
     }
 
     private void verifyStatus(Response rs, ResponseSpec spec) {
@@ -358,7 +374,7 @@ public class Scenario extends LogSupport {
         }
     }
 
-    private void verifyData(Response rs, ResponseSpec spec) throws IOException {
+    private void verifyBody(Response rs, ResponseSpec spec) throws IOException {
         String bodyString;
         if (null != spec.text) {
             bodyString = rs.body().string();

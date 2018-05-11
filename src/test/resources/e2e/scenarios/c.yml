@@ -1,0 +1,8 @@
+Scenario(c):
+  interactions:
+    - description: test c
+      request:
+        method: GET
+        url: /foo/c
+      response:
+        status: 200

@@ -110,12 +110,11 @@ public class YamlLoader {
 
 
     public Map<String, Object> loadFixture(String fixtureName, DaoLocator daoLocator) {
-        fixtureName = S.ensure(fixtureName).startWith(fixtureFolder);
-        URL url = YamlLoader.class.getResource(fixtureName);
-        if (null == url) {
+        String content = getResourceAsString(fixtureName);
+        if (null == content) {
             return C.Map();
         }
-        return load(IO.read(url).toString(), daoLocator);
+        return parse(content, daoLocator);
     }
 
     /**
@@ -124,7 +123,7 @@ public class YamlLoader {
      *      the yaml content
      * @return the loaded data mapped to name
      */
-    public Map<String, Object> load(String yaml, DaoLocator daoLocator) {
+    public Map<String, Object> parse(String yaml, DaoLocator daoLocator) {
         Object o = new Yaml().load(yaml);
         Map<Object, Map<?, ?>> objects = $.cast(o);
         Map<String, Map<String, Object>> mapCache = C.newMap();
@@ -168,6 +167,15 @@ public class YamlLoader {
             }
         }
         return entityCache;
+    }
+
+    protected String getResourceAsString(String name) {
+        URL url = YamlLoader.class.getResource(patchResourceName(name));
+        return null == url ? null : IO.read(url).toString();
+    }
+
+    private String patchResourceName(String name) {
+        return S.ensure(name).startWith(fixtureFolder);
     }
 
     private Class<?> loadModelType(String type) {

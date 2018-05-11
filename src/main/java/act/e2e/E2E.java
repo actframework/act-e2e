@@ -23,7 +23,7 @@ package act.e2e;
 import act.app.App;
 import act.app.DbServiceManager;
 import act.db.DbService;
-import act.e2e.action.Action;
+import act.e2e.macro.Macro;
 import act.e2e.req_modifier.RequestModifier;
 import act.e2e.verifier.Verifier;
 import act.e2e.util.ScenarioLoader;
@@ -83,21 +83,25 @@ public class E2E extends LogSupport {
     @OnAppStart(delayInSeconds = 1)
     public void run(App app) {
         info("Start running E2E test scenarios\n");
-        registerTypeConverters();
-        Map<String, Scenario> scenarios = new ScenarioLoader().load();
-        if (scenarios.isEmpty()) {
-            LOGGER.warn("No scenario defined.");
-        } else {
-            for (Scenario scenario : scenarios.values()) {
-                scenario.start();
+        try {
+            registerTypeConverters();
+            ScenarioLoader loader = new ScenarioLoader();
+            Map<String, Scenario> scenarios = loader.load();
+            if (scenarios.isEmpty()) {
+                LOGGER.warn("No scenario defined.");
+            } else {
+                for (Scenario scenario : scenarios.values()) {
+                    scenario.start(loader);
+                }
             }
+        } finally {
+            app.shutdown();
         }
-        app.shutdown();
     }
 
     public static void registerTypeConverters() {
         Verifier.registerTypeConverters();
-        Action.registerTypeConverters();
+        Macro.registerTypeConverters();
         RequestModifier.registerTypeConverters();
     }
 

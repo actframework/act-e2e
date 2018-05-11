@@ -64,7 +64,7 @@ Scenario(Hello Service):
         url: /hello?who=ActFramework
       response:
         text: Hello ActFramework
-    - description: send request to hello servcie with parameter specified and requqire JSON response
+    - description: send request to hello servcie with parameter specified and require JSON response
       request:
         modifiers:
           - json

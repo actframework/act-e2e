@@ -20,15 +20,34 @@ package act.e2e.util;
  * #L%
  */
 
+import act.Act;
+import act.app.App;
 import act.app.DaoLocator;
+import act.app.RuntimeDirs;
 import act.e2e.Scenario;
 import org.osgl.$;
+import org.osgl.logging.Logger;
+import org.osgl.util.C;
+import org.osgl.util.IO;
+import org.osgl.util.Keyword;
 
+import java.io.File;
+import java.io.FilenameFilter;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URL;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
 
 public class ScenarioLoader extends YamlLoader {
 
+    private Logger logger = Act.LOGGER;
+
     private static DaoLocator NULL_DAO = new NullDaoLocator();
+
+    private Map<Keyword, Scenario> store = new HashMap<>();
 
     public ScenarioLoader() {
         super("act.e2e");
@@ -42,12 +61,115 @@ public class ScenarioLoader extends YamlLoader {
         setFixtureFolder("/e2e");
     }
 
+    public Scenario get(String name) {
+        return store.get(Keyword.of(name));
+    }
+
     public Map<String, Scenario> load() {
-        Map<String, Object> map = super.loadFixture("scenarios.yml", NULL_DAO);
+        loadDefault();
+        searchScenarioFolder();
+        Map<String, Scenario> scenarioMap = new HashMap<>();
+        for (Map.Entry<Keyword, Scenario> entry : store.entrySet()) {
+            scenarioMap.put(entry.getKey().hyphenated(), entry.getValue());
+        }
+        return scenarioMap;
+    }
+
+    private void loadDefault() {
+        String content = getResourceAsString("scenarios.yml");
+        if (null == content) {
+            return;
+        }
+        parseOne(content);
+    }
+
+    private void searchScenarioFolder() {
+        App app = Act.app();
+        if (null != app) {
+            searchWhenInAppContext(app);
+        } else {
+            URL url = ScenarioLoader.class.getResource("/e2e/scenarios");
+            if (null != url) {
+                File file = new File(url.getFile());
+                if (file.exists()) {
+                    loadFromScenarioDir(file);
+                }
+            }
+        }
+    }
+
+    private void searchWhenInAppContext(App app) {
+        File resource = RuntimeDirs.resource(app);
+        if (resource.exists()) {
+            loadFromDir(resource);
+        } else {
+            String appJarFile = System.getProperty(Act.PROP_APP_JAR_FILE);
+            if (null != appJarFile) {
+                File jarFile = new File(appJarFile);
+                loadFromJar(jarFile);
+            }
+        }
+    }
+
+    private void loadFromDir(File resourceDir) {
+        if (!resourceDir.exists()) {
+            return;
+        }
+        File scenariosDir = new File(resourceDir, "e2e/scenarios");
+        if (!scenariosDir.exists()) {
+            return;
+        }
+        loadFromScenarioDir(scenariosDir);
+    }
+
+    private void loadFromScenarioDir(File scenariosDir) {
+        File[] ymlFiles = scenariosDir.listFiles(new FilenameFilter() {
+            @Override
+            public boolean accept(File dir, String name) {
+                return name.endsWith(".yml");
+            }
+        });
+        if (null == ymlFiles) {
+            return;
+        }
+        for (File file : ymlFiles) {
+            String content = IO.read(file).toString();
+            try {
+                parseOne(content);
+            } catch (RuntimeException e) {
+                logger.error(e, "Error parsing scenario file: %s", file.getName());
+                throw e;
+            }
+        }
+    }
+
+    private void loadFromJar(File jarFile) {
+        try (JarFile jar = new JarFile(jarFile)) {
+            for (JarEntry entry : C.enumerable(jar.entries())) {
+                String name = entry.getName();
+                if (isScenarioFile(name)) {
+                    InputStream is = jar.getInputStream(entry);
+                    String content = IO.readContentAsString(is);
+                    parseOne(content);
+                }
+            }
+        } catch (IOException e) {
+            logger.warn(e, "Error loading scenario from jar file");
+        }
+    }
+
+    private boolean isScenarioFile(String name) {
+        return name.startsWith("e2e/scenarios/") && name.endsWith(".yml");
+    }
+
+    private void parseOne(String content) {
+        Map<String, Object> map = parse(content, NULL_DAO);
         Map<String, Scenario> loaded = $.cast(map);
         for (Map.Entry<String, Scenario> entry : loaded.entrySet()) {
-            entry.getValue().name = entry.getKey();
+            String key = entry.getKey();
+            entry.getValue().name = key;
+            this.store.put(Keyword.of(key), entry.getValue());
         }
-        return loaded;
     }
+
 }

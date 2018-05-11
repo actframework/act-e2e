@@ -1,4 +1,4 @@
-package act.e2e.action;
+package act.e2e.macro;
 
 /*-
  * #%L
@@ -27,16 +27,16 @@ import org.osgl.util.converter.TypeConverterRegistry;
 
 import java.util.List;
 
-public abstract class Action<T extends Action> extends NamedLogic<T> {
+public abstract class Macro<T extends Macro> extends NamedLogic<T> {
 
     public abstract void run(Scenario scenario);
 
     @Override
     protected final Class<? extends NamedLogic> type() {
-        return Action.class;
+        return Macro.class;
     }
 
-    public static class ClearFixture extends Action<ClearFixture> {
+    public static class ClearFixture extends Macro<ClearFixture> {
 
         @Override
         public void run(Scenario scenario) {
@@ -49,7 +49,7 @@ public abstract class Action<T extends Action> extends NamedLogic<T> {
         }
     }
 
-    public static class ClearSession extends Action<ClearSession> {
+    public static class ClearSession extends Macro<ClearSession> {
         @Override
         public void run(Scenario scenario) {
             scenario.clearSession();
@@ -57,8 +57,8 @@ public abstract class Action<T extends Action> extends NamedLogic<T> {
     }
 
     public static void registerTypeConverters() {
-        TypeConverterRegistry.INSTANCE.register(new FromLinkedHashMap(Action.class));
-        TypeConverterRegistry.INSTANCE.register(new FromString(Action.class));
+        TypeConverterRegistry.INSTANCE.register(new FromLinkedHashMap(Macro.class));
+        TypeConverterRegistry.INSTANCE.register(new FromString(Macro.class));
     }
 
     public static void registerActions() {

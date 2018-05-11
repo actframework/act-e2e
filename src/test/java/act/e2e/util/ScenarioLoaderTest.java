@@ -21,7 +21,7 @@ package act.e2e.util;
  */
 
 import act.e2e.*;
-import act.e2e.action.Action;
+import act.e2e.macro.Macro;
 import act.e2e.req_modifier.RequestModifier;
 import act.e2e.verifier.Contains;
 import act.e2e.verifier.Eq;
@@ -46,7 +46,7 @@ public class ScenarioLoaderTest extends TestBase {
         new Gt().register();
         E2E.registerTypeConverters();
         RequestModifier.registerModifiers();
-        Action.registerActions();
+        Macro.registerActions();
     }
 
     @Test
@@ -55,9 +55,11 @@ public class ScenarioLoaderTest extends TestBase {
         no(map.isEmpty());
         Scenario createTask = map.get("create-task");
         verifyCreateTask(createTask);
-        Scenario signIn = createTask.depends.get(0);
+        String s = createTask.depends.get(0);
+        Scenario signIn = loader.get(s);
         notNull(signIn);
-        Scenario signUp = signIn.depends.get(0);
+        s = signIn.depends.get(0);
+        Scenario signUp = loader.get(s);
         verifySignUp(signUp);
     }
 

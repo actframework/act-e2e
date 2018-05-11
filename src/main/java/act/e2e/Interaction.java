@@ -20,15 +20,27 @@ package act.e2e;
  * #L%
  */
 
-import act.data.annotation.Data;
-import act.e2e.action.Action;
-import act.util.SimpleBean;
+import act.e2e.macro.Macro;
+import org.osgl.exception.UnexpectedException;
+import org.osgl.util.E;
+import org.osgl.util.S;
 
-@Data
-public class Interaction implements SimpleBean {
-    public Action preAction;
+import java.util.ArrayList;
+import java.util.List;
+
+public class Interaction implements ScenarioPart {
+    public List<Macro> preActions = new ArrayList<>();
     public String description;
     public RequestSpec request;
     public ResponseSpec response;
-    public Action postAction;
+    public List<Macro> postActions = new ArrayList<>();
+
+    @Override
+    public void validate() throws UnexpectedException {
+        E.unexpectedIf(S.blank(description), "description is blank");
+        E.unexpectedIf(null == request, "request spec not specified");
+        E.unexpectedIf(null == response, "response spec not specified");
+        request.validate();
+        response.validate();
+    }
 }

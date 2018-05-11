@@ -18,7 +18,7 @@ Scenario(sign_up):
 
 Scenario(sign_in):
   depends:
-    - embed:sign_up
+    - sign_up
   interactions:
     - description: login user `test@123.com`
       request:
@@ -37,7 +37,7 @@ Scenario(create-task):
   fixtures:
     - init-data.yml
   depends:
-    - embed:sign_in
+    - sign_in
   interactions:
     - description: Create the first course with name "History"
       request:

@@ -20,24 +20,44 @@ package act.e2e;
  * #L%
  */
 
-import act.data.annotation.Data;
 import com.alibaba.fastjson.JSON;
+import org.osgl.exception.UnexpectedException;
 import org.osgl.http.H;
 
 import java.util.HashMap;
 import java.util.Map;
 
-@Data
-public class ResponseSpec {
+public class ResponseSpec implements ScenarioPart {
 
     public H.Status status;
     public Object text;
-    public Map<String, Object> json;
+    public Map<String, Object> json = new HashMap<>();
     public Map<String, Object> headers = new HashMap<>();
+
+    @Override
+    public void validate() throws UnexpectedException {
+        checkForEmpty();
+    }
 
     @Override
     public String toString() {
         return JSON.toJSONString(this);
+    }
+
+    private void checkForEmpty() {
+        if (null != status) {
+            return;
+        }
+        if (null != text) {
+            return;
+        }
+        if (!json.isEmpty()) {
+            return;
+        }
+        if (headers.isEmpty()) {
+            return;
+        }
+        throw new UnexpectedException("No content defined in response spec");
     }
 
 }

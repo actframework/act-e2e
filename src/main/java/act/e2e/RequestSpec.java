@@ -20,25 +20,25 @@ package act.e2e;
  * #L%
  */
 
-import act.data.annotation.Data;
 import act.e2e.req_modifier.RequestModifier;
-import act.util.SimpleBean;
 import com.alibaba.fastjson.JSON;
+import org.osgl.exception.UnexpectedException;
 import org.osgl.http.H;
 import org.osgl.util.C;
+import org.osgl.util.E;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-@Data
-public class RequestSpec implements SimpleBean {
+public class RequestSpec implements ScenarioPart {
 
     public static final RequestSpec RS_CLEAR_FIXTURE = clearFixture();
 
     public H.Method method;
     public String url;
+    public Boolean json;
     public List<RequestModifier> modifiers = new ArrayList<>();
     public Map<String, Object> params = new HashMap<>();
     public Map<String, String> headers = new HashMap<>();
@@ -49,6 +49,12 @@ public class RequestSpec implements SimpleBean {
     @Override
     public String toString() {
         return JSON.toJSONString(this);
+    }
+
+    @Override
+    public void validate() throws UnexpectedException {
+        E.unexpectedIf(null == method, "method must be specified");
+        E.unexpectedIf(null == url, "url must be specified");
     }
 
     private static RequestSpec clearFixture() {

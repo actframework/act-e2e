@@ -38,7 +38,7 @@ import java.util.Map;
  *
  * The named logic could belong to different types, e.g.
  *
- * * Action - trigger an action, e.g. clear current session
+ * * Action - trigger an macro, e.g. clear current session
  * * Assert - used to verify the data
  * * Modifier - used to modify request
  */
