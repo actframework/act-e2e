@@ -41,7 +41,7 @@ import java.util.Map;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
-public class ScenarioLoader extends YamlLoader {
+public class ScenarioManager extends YamlLoader {
 
     private Logger logger = Act.LOGGER;
 
@@ -49,16 +49,18 @@ public class ScenarioLoader extends YamlLoader {
 
     private Map<Keyword, Scenario> store = new HashMap<>();
 
-    public ScenarioLoader() {
+    public ScenarioManager() {
         super("act.e2e");
         setFixtureFolder("/e2e/");
+        configure();
     }
 
-    public ScenarioLoader(String modelPackage, String... modelPackages) {
+    public ScenarioManager(String modelPackage, String... modelPackages) {
         super();
         addModelPackages("act.e2e");
         addModelPackages(modelPackage, modelPackages);
         setFixtureFolder("/e2e");
+        configure();
     }
 
     public Scenario get(String name) {
@@ -75,6 +77,13 @@ public class ScenarioLoader extends YamlLoader {
         return scenarioMap;
     }
 
+    private void configure() {
+        App app = Act.app();
+        if (null == app) {
+            return;
+        }
+    }
+
     private void loadDefault() {
         String content = getResourceAsString("scenarios.yml");
         if (null == content) {
@@ -88,7 +97,7 @@ public class ScenarioLoader extends YamlLoader {
         if (null != app) {
             searchWhenInAppContext(app);
         } else {
-            URL url = ScenarioLoader.class.getResource("/e2e/scenarios");
+            URL url = ScenarioManager.class.getResource("/e2e/scenarios");
             if (null != url) {
                 File file = new File(url.getFile());
                 if (file.exists()) {
@@ -167,8 +176,9 @@ public class ScenarioLoader extends YamlLoader {
         Map<String, Scenario> loaded = $.cast(map);
         for (Map.Entry<String, Scenario> entry : loaded.entrySet()) {
             String key = entry.getKey();
-            entry.getValue().name = key;
-            this.store.put(Keyword.of(key), entry.getValue());
+            Scenario scenario = entry.getValue();
+            scenario.name = key;
+            this.store.put(Keyword.of(key), scenario);
         }
     }
 

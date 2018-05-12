@@ -92,7 +92,7 @@ public class YamlLoader {
      * @param modelPackage
      * @param modelPackages
      */
-    YamlLoader(String modelPackage, String ... modelPackages) {
+    protected YamlLoader(String modelPackage, String ... modelPackages) {
         resetModelPackages();
         loadConfig();
         addModelPackages(modelPackage, modelPackages);

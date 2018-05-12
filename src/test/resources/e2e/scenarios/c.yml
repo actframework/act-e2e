@@ -2,6 +2,7 @@ Scenario(c):
   interactions:
     - description: test c
       request:
+        extends:
         method: GET
         url: /foo/c
       response:

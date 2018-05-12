@@ -20,12 +20,16 @@ package act.e2e;
  * #L%
  */
 
+import static org.osgl.http.H.Header.Names.ACCEPT;
+import static org.osgl.http.H.Header.Names.X_REQUESTED_WITH;
+
 import act.Act;
 import act.app.App;
 import act.e2e.macro.Macro;
 import act.e2e.req_modifier.RequestModifier;
 import act.e2e.util.CookieStore;
-import act.e2e.util.ScenarioLoader;
+import act.e2e.util.RequestTemplateManager;
+import act.e2e.util.ScenarioManager;
 import act.e2e.verifier.Verifier;
 import act.util.LogSupport;
 import com.alibaba.fastjson.JSON;
@@ -57,11 +61,26 @@ public class Scenario extends LogSupport implements ScenarioPart {
 
         RequestBuilder(RequestSpec requestSpec) {
             builder = new Request.Builder();
-            for (Map.Entry<String, String> entry : requestSpec.headers.entrySet()) {
-                builder.addHeader(entry.getKey(), entry.getValue());
+            if ($.bool(requestSpec.json)) {
+                builder.addHeader(ACCEPT, H.Format.JSON.contentType());
+            }
+            if ($.bool(requestSpec.ajax)) {
+                builder.addHeader(X_REQUESTED_WITH, "XMLHttpRequest");
             }
             for (RequestModifier modifier : requestSpec.modifiers) {
                 modifier.modifyRequest(builder);
+            }
+            for (Map.Entry<String, Object> entry : requestSpec.headers.entrySet()) {
+                String headerName = entry.getKey();
+                String headerVal = S.string(entry.getValue());
+                if (headerVal.startsWith("last:") || headerVal.startsWith("last|")) {
+                    String payload = headerVal.substring(5);
+                    if (S.blank(payload)) {
+                        payload = headerName;
+                    }
+                    headerVal = S.string(lastHeaders.get().get(payload));
+                }
+                builder.addHeader(headerName, headerVal);
             }
             String url = S.concat("http://localhost:", port, S.ensure(processStringSubstitution(requestSpec.url)).startWith("/"));
             boolean hasParams = !requestSpec.params.isEmpty();
@@ -113,7 +132,7 @@ public class Scenario extends LogSupport implements ScenarioPart {
                 Object val = entry.getValue();
                 if (val instanceof String) {
                     String sVal = (String) val;
-                    if (sVal.startsWith("last:")) {
+                    if (sVal.startsWith("last:") || sVal.startsWith("last|")) {
                         String ref = sVal.substring(5);
                         entry.setValue(getLastVal(ref));
                     }
@@ -124,9 +143,9 @@ public class Scenario extends LogSupport implements ScenarioPart {
         private Object getLastVal(String ref) {
             Object val;
             if (S.blank(ref)) {
-                val = lastResponse.get();
+                val = lastData.get();
             } else {
-                Object lastObj = lastResponse.get();
+                Object lastObj = lastData.get();
                 if (lastObj instanceof JSONArray) {
                     if (S.isInt(ref)) {
                         val = ((JSONArray) lastObj).get(Integer.parseInt(ref));
@@ -192,8 +211,6 @@ public class Scenario extends LogSupport implements ScenarioPart {
 
     }
 
-    private String modelPackage;
-
     private int port = 5460;
 
     private OkHttpClient http;
@@ -204,21 +221,22 @@ public class Scenario extends LogSupport implements ScenarioPart {
 
 
     public String name;
-    public Boolean json;
     public String description;
     public List<String> fixtures = new ArrayList<>();
     public List<String> depends = new ArrayList<>();
     public List<Interaction> interactions = new ArrayList<>();
     public boolean finished;
-    public $.Var<Object> lastResponse = $.var();
 
-    private ScenarioLoader loader;
+    $.Var<Object> lastData = $.var();
+    $.Var<Map<String, Object>> lastHeaders = $.var();
+
+    private ScenarioManager scenarioManager;
+    private RequestTemplateManager requestTemplateManager;
 
     public Scenario() {
         app = Act.app();
         if (null != app) {
             port = app.config().httpPort();
-            json = app.config().get("act.e2e.json");
         }
     }
 
@@ -231,11 +249,12 @@ public class Scenario extends LogSupport implements ScenarioPart {
         }
     }
 
-    public void start(ScenarioLoader loader) {
+    public void start(ScenarioManager scenarioManager, RequestTemplateManager requestTemplateManager) {
         if (finished) {
             return;
         }
-        this.loader = loader;
+        this.scenarioManager = $.requireNotNull(scenarioManager);
+        this.requestTemplateManager = $.requireNotNull(requestTemplateManager);
         validate();
         long ms = $.ms();
         printBanner();
@@ -250,7 +269,7 @@ public class Scenario extends LogSupport implements ScenarioPart {
     }
 
     public void clearFixtures() {
-        run(RequestSpec.RS_CLEAR_FIXTURE, null, "Clear fixtures");
+        run(RequestSpec.RS_CLEAR_FIXTURE, null);
     }
 
     private void createFixtures() {
@@ -258,7 +277,7 @@ public class Scenario extends LogSupport implements ScenarioPart {
             return;
         }
         RequestSpec req = RequestSpec.loadFixtures(fixtures);
-        run(req, null, "Create fixtures");
+        run(req, null);
     }
 
     private void prepareHttp() {
@@ -268,6 +287,7 @@ public class Scenario extends LogSupport implements ScenarioPart {
     private void reset() {
         clearSession();
         clearFixtures();
+        createFixtures();
     }
 
     private void run() {
@@ -285,7 +305,7 @@ public class Scenario extends LogSupport implements ScenarioPart {
 
     private void runDependents() {
         for (String dependent : depends) {
-            loader.get(dependent).run();
+            scenarioManager.get(dependent).run();
         }
     }
 
@@ -299,7 +319,13 @@ public class Scenario extends LogSupport implements ScenarioPart {
         for (Macro macro: interaction.preActions) {
             macro.run(this);
         }
-        run(interaction.request, interaction.response, interaction.description);
+        try {
+            run(interaction.request, interaction.response);
+            info("[PASS] " + interaction.description);
+        } catch (RuntimeException e) {
+            error("[FAIL] " + interaction.description);
+            throw e;
+        }
         for (Macro macro: interaction.postActions) {
             macro.run(this);
         }
@@ -326,18 +352,12 @@ public class Scenario extends LogSupport implements ScenarioPart {
         return cookieStore;
     }
 
-    private void run(RequestSpec req, ResponseSpec rs, String format, Object... args) {
+    private void run(RequestSpec req, ResponseSpec rs) {
+        req.resolveParent(requestTemplateManager);
         Request req0 = new RequestBuilder(req).build();
         try {
             Response rs0 = http.newCall(req0).execute();
             verify(rs0, rs);
-            info("[PASS] " + S.fmt(format, args));
-        } catch (NullPointerException e) {
-            error("[FAIL] " + S.fmt(format, args));
-            $.breakOut(e);
-        } catch (UnexpectedException e) {
-            error("[FAIL] " + S.fmt(format, args));
-            $.breakOut(e);
         } catch (IOException e) {
             throw E.ioException(e);
         }
@@ -372,23 +392,24 @@ public class Scenario extends LogSupport implements ScenarioPart {
                 E.unexpected(e, "failed verify header[%s]", headerName);
             }
         }
+        lastHeaders.set(spec.headers);
     }
 
     private void verifyBody(Response rs, ResponseSpec spec) throws IOException {
         String bodyString;
         if (null != spec.text) {
             bodyString = rs.body().string();
-            lastResponse.set(bodyString);
+            lastData.set(bodyString);
             verifyValue(bodyString, spec.text);
         } else if (null != spec.json) {
             bodyString = S.string(rs.body().string()).trim();
             if (bodyString.startsWith("[")) {
                 JSONArray array = JSON.parseArray(bodyString);
-                lastResponse.set(array);
+                lastData.set(array);
                 verifyJsonArray(array, spec.json);
             } else if (bodyString.startsWith("{")) {
                 JSONObject obj = JSON.parseObject(bodyString);
-                lastResponse.set(obj);
+                lastData.set(obj);
                 verifyJsonObject(obj, spec.json);
             } else {
                 E.unexpected("Unknown JSON string: \n%s", bodyString);

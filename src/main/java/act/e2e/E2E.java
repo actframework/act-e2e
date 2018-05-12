@@ -25,8 +25,9 @@ import act.app.DbServiceManager;
 import act.db.DbService;
 import act.e2e.macro.Macro;
 import act.e2e.req_modifier.RequestModifier;
+import act.e2e.util.RequestTemplateManager;
 import act.e2e.verifier.Verifier;
-import act.e2e.util.ScenarioLoader;
+import act.e2e.util.ScenarioManager;
 import act.e2e.util.YamlLoader;
 import act.job.OnAppStart;
 import act.sys.Env;
@@ -85,13 +86,15 @@ public class E2E extends LogSupport {
         info("Start running E2E test scenarios\n");
         try {
             registerTypeConverters();
-            ScenarioLoader loader = new ScenarioLoader();
-            Map<String, Scenario> scenarios = loader.load();
+            RequestTemplateManager requestTemplateManager = new RequestTemplateManager();
+            requestTemplateManager.load();
+            ScenarioManager scenarioManager = new ScenarioManager();
+            Map<String, Scenario> scenarios = scenarioManager.load();
             if (scenarios.isEmpty()) {
                 LOGGER.warn("No scenario defined.");
             } else {
                 for (Scenario scenario : scenarios.values()) {
-                    scenario.start(loader);
+                    scenario.start(scenarioManager, requestTemplateManager);
                 }
             }
         } finally {

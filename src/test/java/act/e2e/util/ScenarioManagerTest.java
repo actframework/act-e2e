@@ -34,9 +34,9 @@ import osgl.ut.TestBase;
 
 import java.util.Map;
 
-public class ScenarioLoaderTest extends TestBase {
+public class ScenarioManagerTest extends TestBase {
 
-    private ScenarioLoader loader = new ScenarioLoader("act.e2e.model");
+    private ScenarioManager loader = new ScenarioManager("act.e2e.model");
 
     @BeforeClass
     public static void prepare() {

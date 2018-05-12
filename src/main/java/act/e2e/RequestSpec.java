@@ -21,6 +21,7 @@ package act.e2e;
  */
 
 import act.e2e.req_modifier.RequestModifier;
+import act.e2e.util.RequestTemplateManager;
 import com.alibaba.fastjson.JSON;
 import org.osgl.exception.UnexpectedException;
 import org.osgl.http.H;
@@ -36,13 +37,17 @@ public class RequestSpec implements ScenarioPart {
 
     public static final RequestSpec RS_CLEAR_FIXTURE = clearFixture();
 
+    public String parent;
     public H.Method method;
     public String url;
     public Boolean json;
+    public Boolean ajax;
     public List<RequestModifier> modifiers = new ArrayList<>();
     public Map<String, Object> params = new HashMap<>();
-    public Map<String, String> headers = new HashMap<>();
+    public Map<String, Object> headers = new HashMap<>();
     public String jsonBody;
+
+    private boolean resolved;
 
     public RequestSpec() {}
 
@@ -51,10 +56,56 @@ public class RequestSpec implements ScenarioPart {
         return JSON.toJSONString(this);
     }
 
+    public void resolveParent(RequestTemplateManager manager) {
+        if (resolved) {
+            return;
+        }
+        if (null == parent) {
+            parent = "global";
+        }
+        RequestSpec parentSpec = manager.getTemplate(parent);
+        if (null != parentSpec && this != parentSpec) {
+            parentSpec.resolveParent(manager);
+            extendsParent(parentSpec);
+        } else if (!"global".equals(parent)) {
+            throw new UnexpectedException("parent request template not found: " + parent);
+        }
+        resolved = true;
+    }
+
     @Override
     public void validate() throws UnexpectedException {
         E.unexpectedIf(null == method, "method must be specified");
         E.unexpectedIf(null == url, "url must be specified");
+    }
+
+    public void markAsResolved() {
+        resolved = true;
+    }
+
+    public void unsetResolvedMark() {
+        resolved = false;
+    }
+
+    private void extendsParent(RequestSpec parent) {
+        if (null == json) {
+            json = parent.json;
+        }
+        if (null == ajax) {
+            ajax = parent.ajax;
+        }
+        for (Map.Entry<String, Object> entry : parent.params.entrySet()) {
+            String key = entry.getKey();
+            if (!params.containsKey(key)) {
+                params.put(key, entry.getValue());
+            }
+        }
+        for (Map.Entry<String, Object> entry : parent.headers.entrySet()) {
+            String key = entry.getKey();
+            if (!headers.containsKey(key)) {
+                headers.put(key, entry.getValue());
+            }
+        }
     }
 
     private static RequestSpec clearFixture() {
