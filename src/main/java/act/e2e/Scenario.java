@@ -461,7 +461,7 @@ public class Scenario extends LogSupport implements ScenarioPart {
                 }
                 Verifier v = tryLoadVerifier((String) test);
                 if (null != v) {
-                    v.verify(value);
+                    E.unexpectedIf(!v.verify(value), "Cannot verify value[%s] against test[%s]", value, test);
                 }
             }
             E.unexpected("Cannot verify value[%s] with test [%s]", value, test);
@@ -489,12 +489,12 @@ public class Scenario extends LogSupport implements ScenarioPart {
         }
         // now try verifiers
         for (Object test : tests) {
-            E.unexpectedIfNot(test instanceof Map, "Cannot verify value[%s] against test[%s]", value, tests);
+            E.unexpectedIfNot(test instanceof Map, "Cannot verify value[%s] against test[%s]", value, test);
             Map<?, ?> map = (Map) test;
-            E.unexpectedIfNot(map.size() == 1, "Cannot verify value[%s] against test[%s]", value, tests);
+            E.unexpectedIfNot(map.size() == 1, "Cannot verify value[%s] against test[%s]", value, test);
             Verifier v = $.convert(map).to(Verifier.class);
-            E.unexpectedIf(null == v, "Cannot verify value[%s] against test[%s]", value, tests);
-            v.verify(value);
+            E.unexpectedIf(null == v, "Cannot verify value[%s] against test[%s]", value, test);
+            E.unexpectedIf(!v.verify(value), "Cannot verify value[%s] against test[%s]", value, v);
         }
     }
 

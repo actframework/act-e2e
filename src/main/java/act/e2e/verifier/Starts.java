@@ -20,32 +20,20 @@ package act.e2e.verifier;
  * #L%
  */
 
-import org.osgl.$;
+import org.osgl.util.C;
 import org.osgl.util.S;
 
-import java.lang.reflect.Array;
-import java.util.Collection;
+import java.util.List;
 
-public class Contains extends Verifier<Contains> {
+public class Starts extends Verifier<Starts> {
 
     @Override
     public boolean verify(Object value) {
-        if (null == value) {
-            return initVal == null;
-        }
-        if (value instanceof String) {
-            return S.string(value).contains(S.string(initVal));
-        } else if (value instanceof Collection) {
-            return ((Collection) value).contains(initVal);
-        } else if (value.getClass().isArray()) {
-            int len = Array.getLength(value);
-            for (int i = 0; i < len; ++i) {
-                Object component = Array.get(value, i);
-                if ($.eq(component, initVal)) {
-                    return true;
-                }
-            }
-        }
-        return false;
+        return S.string(value).startsWith(S.string(initVal));
+    }
+
+    @Override
+    protected List<String> aliases() {
+        return C.list("startsWith", "start", "startWith");
     }
 }

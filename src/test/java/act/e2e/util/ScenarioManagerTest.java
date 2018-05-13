@@ -76,7 +76,7 @@ public class ScenarioManagerTest extends TestBase {
         RequestModifier json = req.modifiers.get(0);
         eq("accept-json", json.toString());
         RequestModifier ip = req.modifiers.get(1);
-        eq("remote-address[127.0.0.2]", ip.toString());
+        eq("remote-address: 127.0.0.2", ip.toString());
         eq(H.Method.POST, req.method);
         eq("/sign_up", req.url);
         eq(3, req.params.size());

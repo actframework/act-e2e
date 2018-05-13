@@ -6,12 +6,16 @@ Support end to end test of act application
 
 ### 1.1 Files
 
-act-e2e use all settings in `e2e` profile to run e2e test. In addition to settings (found `resources/conf/e2e`), the following files in `resources/e2e` are read by act-e2e plugin to run e2e test:
+act-e2e use all settings in `e2e` profile to run e2e test. In addition to settings (found `resources/conf/e2e`), the following files in `resources` are read by act-e2e plugin to run e2e test:
 
-* `fixtures/*`
+* `resources/e2e/fixtures/*`
     - stores all data fixtures files prepared for testing environment
-* `scenarios.yml`
+* `resources/e2e/scenarios.yml`
     - Defines test scenarios
+* `resources/e2e/scenarios/*.yml`
+    - stores test scenarios in multiple files for easier management
+* `resources/e2e/requests.yml`
+    - defines request templates which can be referred in request definition in scenario files
 
 #### 1.1.1 Sample Fixture file
 
@@ -49,30 +53,87 @@ User(john):
 #### 1.1.2 Sample Scenario file
 
 ```yaml
+# Test hello service
 Scenario(Hello Service):
-  description: Test Hello Service
+  description: a service says hello
   interactions:
     - description: send request to hello service without parameter
       request:
         method: GET
         url: /hello
       response:
-        text: Hello World
+        text: Hello World # response text must be "Hello World"
     - description: send request to hello servcie with parameter specified
       request:
         method: GET
         url: /hello?who=ActFramework
       response:
-        text: Hello ActFramework
+        # this time we demonstrate verify text with a list of verifiers
+        text:
+          - eq: Hello ActFramework # value must be equal to "Hello ActFramework"
+          - contains: ActFramework # value must contains "ActFramework"
+          - starts: Hello # value must starts with "Hello"
+          - ends: Framework # value must ends with "Framework"
     - description: send request to hello servcie with parameter specified and require JSON response
       request:
-        modifiers:
-          - json
+        json: true # specify accept type is application/json
         method: GET
         url: /hello?who=Java
       response:
+        json: # treat result as a JSON object
+          result: Hello Java # result property of hte JSON object must be "Hello World"
+
+# Test date service
+Scenario(Date Service):
+  description: A service returns a date
+  interactions:
+    - description: send request to the service
+      request:
+        method: GET
+        url: /date
+      response:
+        text:
+          - before: 2000-01-01
+          - after: 01/Jan/1990
+    - description: send request to the service and request response be JSON format
+      request:
+        json: true
+        method: GET
+        url: /date
+      response:
         json:
-          result: Hello Java
+          result:
+            - before: 2000-01-01
+            - after: 01/Jan/1990
+
+# Test todo-task service
+Scenario(task-service):
+  description: A basic todo task service test
+  interactions:
+    - description: Create the a task with description specified
+      request:
+        method: POST
+        url: /tasks
+        params:
+          task.description: TaskA
+      response:
+        json:
+          id: ...
+          description: TaskA
+    - description: Retrieve the Task just created
+      request:
+        method: GET
+        url: /tasks/${last:id}
+      response:
+        json:
+          id: <any>
+          description: TaskA
+    - description: Create a task without description
+      request:
+        method: POST
+        url: /tasks
+      response:
+        status: 400
 ```
 
 1.2 Run test

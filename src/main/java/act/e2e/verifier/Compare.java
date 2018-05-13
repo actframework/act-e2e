@@ -65,7 +65,7 @@ public abstract class Compare extends Verifier<Compare> {
     }
 
     @Override
-    public void init(String expected) {
+    public void init(Object expected) {
         boolean isComparable = expected instanceof Comparable;
         E.illegalArgumentIf(!isComparable, "expected value must be either a Comparable");
         super.init(expected);
@@ -76,7 +76,7 @@ public abstract class Compare extends Verifier<Compare> {
         E.illegalArgumentIfNot(value instanceof Comparable);
         Class<?> commonSuperType = $.commonSuperTypeOf(initVal, value);
         E.illegalArgumentIfNot(Comparable.class.isAssignableFrom(commonSuperType), "Expected value (%s) cannot be compared to found value (%s)", initVal, value);
-        Comparable expected = this.initVal;
+        Comparable expected = (Comparable) this.initVal;
         Comparable found = (Comparable) value;
         return type.applyTo(expected, found);
     }

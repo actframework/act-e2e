@@ -25,6 +25,7 @@ import static org.osgl.http.H.Header.Names.*;
 import act.e2e.util.NamedLogic;
 import okhttp3.Request;
 import org.osgl.util.C;
+import org.osgl.util.S;
 import org.osgl.util.converter.TypeConverterRegistry;
 
 import java.util.List;
@@ -54,7 +55,7 @@ public abstract class RequestModifier<T extends RequestModifier> extends NamedLo
     public static class RemoteAddress extends RequestModifier<RemoteAddress> {
         @Override
         public void modifyRequest(Request.Builder builder) {
-            builder.header(X_FORWARDED_FOR, initVal);
+            builder.header(X_FORWARDED_FOR, S.string(initVal));
         }
 
         @Override

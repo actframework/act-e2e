@@ -48,7 +48,7 @@ public abstract class NamedLogic<T extends NamedLogic> implements Plugin {
 
     protected abstract Class<? extends NamedLogic> type();
 
-    protected String initVal;
+    protected Object initVal;
 
     @Override
     public void register() {
@@ -65,7 +65,7 @@ public abstract class NamedLogic<T extends NamedLogic> implements Plugin {
         if (null == initVal) {
             return keyword().hyphenated();
         }
-        return S.concat(keyword().hyphenated(), "[", initVal, "]");
+        return S.concat(keyword().hyphenated(), ": ", initVal);
     }
 
     @Override
@@ -95,7 +95,7 @@ public abstract class NamedLogic<T extends NamedLogic> implements Plugin {
      * @param param
      *      the initialization string
      */
-    protected void init(String param) {
+    protected void init(Object param) {
         this.initVal = param;
     }
 
@@ -151,7 +151,7 @@ public abstract class NamedLogic<T extends NamedLogic> implements Plugin {
             T logic = get(toType, key);
             E.illegalArgumentIf(null == logic, "%s not found: %s", toType.getName(), key);
             logic = $.cloneOf(logic);
-            logic.init(S.string(entry.getValue()));
+            logic.init(entry.getValue());
             return logic;
         }
     }
