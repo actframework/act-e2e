@@ -9,9 +9,9 @@ package act.e2e;
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -22,6 +22,7 @@ package act.e2e;
 
 import act.app.App;
 import act.app.DbServiceManager;
+import act.db.Dao;
 import act.db.DbService;
 import act.e2e.macro.Macro;
 import act.e2e.req_modifier.RequestModifier;
@@ -74,9 +75,31 @@ public class E2E extends LogSupport {
      */
     @DeleteAction("e2e/fixtures")
     public void clearFixtures() {
+        List<Dao> toBeDeleted = new ArrayList<>();
         for (DbService svc : dbServiceManager.registeredServices()) {
             for (Class entityClass : svc.entityClasses()) {
-                dbServiceManager.dao(entityClass).drop();
+                toBeDeleted.add(dbServiceManager.dao(entityClass));
+            }
+        }
+        /*
+         * The following logic is to deal with the case where two
+         * models have relationship, and the one that is not the owner
+         * has been called to delete first, in which case it will
+         * fail because reference exists in other table(s). so
+         * we want to ignore that case and keep removing other tables.
+         * Hopefully when the owner model get removed eventually and
+         * back to the previous model, it will be good to go.
+         */
+        int count = 1000;
+        while (!toBeDeleted.isEmpty() && count-- > 0) {
+            List<Dao> list = new ArrayList<>(toBeDeleted);
+            for (Dao dao : list) {
+                try {
+                    dao.drop();
+                    toBeDeleted.remove(dao);
+                } catch (Exception e) {
+                    // ignore
+                }
             }
         }
     }
@@ -103,7 +126,7 @@ public class E2E extends LogSupport {
                 }
             }
             List<Scenario> list = new ArrayList<>();
-            for (Scenario scenario: scenarios.values()) {
+            for (Scenario scenario : scenarios.values()) {
                 addToList(scenario, list, scenarioManager);
             }
             return list;
