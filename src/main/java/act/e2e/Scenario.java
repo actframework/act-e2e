@@ -457,7 +457,7 @@ public class Scenario extends LogSupport implements ScenarioPart {
     private void verifyJsonArray(JSONArray array, Map<String, Object> jsonSpec) {
         for (Map.Entry<String, Object> entry : jsonSpec.entrySet()) {
             String key = entry.getKey();
-            Object value;
+            Object value = null;
             if ("size".equals(key) || "len".equals(key) || "length".equals(key)) {
                 value = array.size();
             } else if ("toString".equals(key) || "string".equals(key) || "str".equals(key)) {
@@ -466,7 +466,21 @@ public class Scenario extends LogSupport implements ScenarioPart {
                 int id = Integer.parseInt(key);
                 value = array.get(id);
             } else {
-                throw E.unexpected("Unknown attribute of array verification: %s", key);
+                if (key.contains(".")) {
+                    String id = S.cut(key).beforeFirst(".");
+                    String prop = S.cut(key).afterFirst(".");
+                    if (S.isInt(id)) {
+                        int i = Integer.parseInt(id);
+                        Object o = array.get(i);
+                        if (o instanceof JSONObject) {
+                            JSONObject json = (JSONObject) o;
+                            value = json.get(prop);
+                        }
+                    }
+                }
+                if (null == value) {
+                    throw E.unexpected("Unknown attribute of array verification: %s", key);
+                }
             }
             verifyValue(value, entry.getValue());
         }
@@ -486,22 +500,35 @@ public class Scenario extends LogSupport implements ScenarioPart {
         } else {
             if ($.eq(value, test)) {
                 return;
-            } else if (test instanceof String) {
-                if (null != value && ("*".equals(test) || "...".equals(test) || "<any>".equals(test))) {
-                    return;
-                }
-                try {
-                    Pattern p = Pattern.compile((String) test);
-                    E.unexpectedIfNot(p.matcher((String) value).matches(), "Cannot verify value[%s] with test [%s]", value, test);
-                } catch (Exception e) {
-                    // ignore
-                }
-                Verifier v = tryLoadVerifier((String) test);
-                if (null != v) {
-                    E.unexpectedIf(!v.verify(value), "Cannot verify value[%s] against test[%s]", value, test);
+            } else {
+                if (value instanceof JSONObject) {
+                    E.unexpectedIfNot(test instanceof Map, "Cannot verify value[%s] with test [%s]", value, test);
+                    JSONObject json = (JSONObject) value;
+                    Map<String, ?> testMap = (Map) test;
+                    for (Map.Entry<?, ?> entry : testMap.entrySet()) {
+                        Object testKey = entry.getKey();
+                        Object testValue = entry.getValue();
+                        Object attr = json.get(testKey);
+                        verifyValue(attr, testValue);
+                    }
+                } else if (test instanceof String) {
+                    if (null != value && ("*".equals(test) || "...".equals(test) || "<any>".equals(test))) {
+                        return;
+                    }
+                    try {
+                        Pattern p = Pattern.compile((String) test);
+                        E.unexpectedIfNot(p.matcher((String) value).matches(), "Cannot verify value[%s] with test [%s]", value, test);
+                        return;
+                    } catch (Exception e) {
+                        // ignore
+                    }
+                    Verifier v = tryLoadVerifier((String) test);
+                    if (null != v && v.verify(value)) {
+                        return;
+                    }
+                    E.unexpected("Cannot verify value[%s] with test [%s]", value, test);
                 }
             }
-            E.unexpected("Cannot verify value[%s] with test [%s]", value, test);
         }
     }
 
