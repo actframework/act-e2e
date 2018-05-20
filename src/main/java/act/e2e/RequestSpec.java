@@ -20,6 +20,8 @@ package act.e2e;
  * #L%
  */
 
+import static org.osgl.http.H.Header.Names.CONTENT_TYPE;
+
 import act.e2e.req_modifier.RequestModifier;
 import act.e2e.util.RequestTemplateManager;
 import com.alibaba.fastjson.JSON;
@@ -118,6 +120,7 @@ public class RequestSpec implements ScenarioPart {
     public static RequestSpec loadFixtures(List<String> fixtures) {
         RequestSpec rs = new RequestSpec();
         rs.method = H.Method.POST;
+        rs.headers.put(CONTENT_TYPE, H.Format.JSON.contentType());
         rs.url = "/~/e2e/fixtures";
         rs.jsonBody = JSON.toJSONString(C.Map("fixtures", fixtures));
         return rs;

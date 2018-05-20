@@ -26,9 +26,9 @@ import act.db.DbService;
 import act.e2e.macro.Macro;
 import act.e2e.req_modifier.RequestModifier;
 import act.e2e.util.RequestTemplateManager;
-import act.e2e.verifier.Verifier;
 import act.e2e.util.ScenarioManager;
 import act.e2e.util.YamlLoader;
+import act.e2e.verifier.Verifier;
 import act.job.OnAppStart;
 import act.sys.Env;
 import act.util.LogSupport;
@@ -37,6 +37,7 @@ import org.osgl.logging.Logger;
 import org.osgl.mvc.annotation.DeleteAction;
 import org.osgl.mvc.annotation.PostAction;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import javax.inject.Inject;
@@ -83,6 +84,10 @@ public class E2E extends LogSupport {
     // wait 1 seconds to allow app setup the network
     @OnAppStart(delayInSeconds = 1)
     public void run(App app) {
+        run(app, true);
+    }
+
+    public List<Scenario> run(App app, boolean shutdownApp) {
         info("Start running E2E test scenarios\n");
         try {
             registerTypeConverters();
@@ -97,8 +102,15 @@ public class E2E extends LogSupport {
                     scenario.start(scenarioManager, requestTemplateManager);
                 }
             }
+            List<Scenario> list = new ArrayList<>();
+            for (Scenario scenario: scenarios.values()) {
+                addToList(scenario, list, scenarioManager);
+            }
+            return list;
         } finally {
-            app.shutdown();
+            if (shutdownApp) {
+                app.shutdown();
+            }
         }
     }
 
@@ -106,6 +118,14 @@ public class E2E extends LogSupport {
         Verifier.registerTypeConverters();
         Macro.registerTypeConverters();
         RequestModifier.registerTypeConverters();
+    }
+
+    private static void addToList(Scenario scenario, List<Scenario> list, ScenarioManager manager) {
+        for (String s : scenario.depends) {
+            Scenario dep = manager.get(s);
+            addToList(dep, list, manager);
+        }
+        list.add(scenario);
     }
 
 }

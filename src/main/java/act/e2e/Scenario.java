@@ -47,6 +47,7 @@ import org.osgl.util.S;
 import java.io.IOException;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
@@ -226,18 +227,28 @@ public class Scenario extends LogSupport implements ScenarioPart {
     public List<String> depends = new ArrayList<>();
     public List<Interaction> interactions = new ArrayList<>();
     public boolean finished;
+    public Map<Interaction, String> errorMessages;
 
     $.Var<Object> lastData = $.var();
     $.Var<Map<String, Object>> lastHeaders = $.var();
 
     private ScenarioManager scenarioManager;
     private RequestTemplateManager requestTemplateManager;
+    private transient Interaction currentInteraction;
 
     public Scenario() {
         app = Act.app();
         if (null != app) {
             port = app.config().httpPort();
         }
+    }
+
+    public boolean pass(Interaction interaction) {
+        return !errorMessages.containsKey(interaction);
+    }
+
+    public String errorMessageOf(Interaction interaction) {
+        return errorMessages.get(interaction);
     }
 
     @Override
@@ -253,6 +264,7 @@ public class Scenario extends LogSupport implements ScenarioPart {
         if (finished) {
             return;
         }
+        this.errorMessages = new IdentityHashMap<>();
         this.scenarioManager = $.requireNotNull(scenarioManager);
         this.requestTemplateManager = $.requireNotNull(requestTemplateManager);
         validate();
@@ -270,6 +282,20 @@ public class Scenario extends LogSupport implements ScenarioPart {
 
     public void clearFixtures() {
         run(RequestSpec.RS_CLEAR_FIXTURE, null);
+    }
+
+    protected void error(String format, Object ... args) {
+        E.illegalStateIf(null == currentInteraction, "no current interaction");
+        String errorMessage = S.fmt(format, args);
+        super.error(errorMessage);
+        errorMessages.put(currentInteraction, errorMessage);
+    }
+
+    protected void error(Throwable t, String format, Object ... args) {
+        E.illegalStateIf(null == currentInteraction, "no current interaction");
+        String errorMessage = S.fmt(format, args);
+        super.error(t, errorMessage);
+        errorMessages.put(currentInteraction, errorMessage);
     }
 
     private void createFixtures() {
@@ -290,10 +316,14 @@ public class Scenario extends LogSupport implements ScenarioPart {
         createFixtures();
     }
 
-    private void run() {
+    private boolean run() {
+        boolean ok = false;
         try {
-            runDependents();
-            runInteractions();
+            ok = runDependents();
+            if (ok) {
+                runInteractions();
+            }
+            ok = true;
         } catch ($.Break b) {
             Exception e = b.get();
             error(e, "error running scenario: " + name);
@@ -301,12 +331,16 @@ public class Scenario extends LogSupport implements ScenarioPart {
             error(e, "error running scenario: " + name);
         }
         finished = true;
+        return ok;
     }
 
-    private void runDependents() {
+    private boolean runDependents() {
         for (String dependent : depends) {
-            scenarioManager.get(dependent).run();
+            if (!scenarioManager.get(dependent).run()) {
+                return false;
+            }
         }
+        return true;
     }
 
     private void runInteractions() {
@@ -316,6 +350,7 @@ public class Scenario extends LogSupport implements ScenarioPart {
     }
 
     private void run(Interaction interaction) {
+        currentInteraction = interaction;
         for (Macro macro: interaction.preActions) {
             macro.run(this);
         }
@@ -334,8 +369,10 @@ public class Scenario extends LogSupport implements ScenarioPart {
     private void printBanner() {
         printDoubleDashedLine();
         info(name.toUpperCase());
-        println();
-        info(S.string(description));
+        if (S.notBlank(description)) {
+            println();
+            info(S.string(description));
+        }
         printDashedLine();
     }
 
@@ -354,10 +391,10 @@ public class Scenario extends LogSupport implements ScenarioPart {
 
     private void run(RequestSpec req, ResponseSpec rs) {
         req.resolveParent(requestTemplateManager);
-        Request req0 = new RequestBuilder(req).build();
+        Request httpRequest = new RequestBuilder(req).build();
         try {
-            Response rs0 = http.newCall(req0).execute();
-            verify(rs0, rs);
+            Response httpResponse = http.newCall(httpRequest).execute();
+            verify(httpResponse, rs);
         } catch (IOException e) {
             throw E.ioException(e);
         }

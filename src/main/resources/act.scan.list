@@ -1,1 +1,4 @@
 act.e2e.E2E
+act.e2e.ScenarioDebugHelper
+act.e2e.ScenarioDebugHelper$LoadFixtures
+act.e2e.ScenarioDebugHelper$ClearFixtures
