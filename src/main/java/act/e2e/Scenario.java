@@ -457,11 +457,21 @@ public class Scenario extends LogSupport implements ScenarioPart {
     private void verifyJsonArray(JSONArray array, Map<String, Object> jsonSpec) {
         for (Map.Entry<String, Object> entry : jsonSpec.entrySet()) {
             String key = entry.getKey();
+            Object test = entry.getValue();
             Object value = null;
             if ("size".equals(key) || "len".equals(key) || "length".equals(key)) {
                 value = array.size();
             } else if ("toString".equals(key) || "string".equals(key) || "str".equals(key)) {
                 value = JSON.toJSONString(array);
+            } else if ("?".equals(key) || "<any>".equalsIgnoreCase(key)) {
+                for (Object arrayElement: array) {
+                    try {
+                        verifyValue(arrayElement, test);
+                        return;
+                    } catch (Exception e) {
+                        // try next one
+                    }
+                }
             } else if (S.isInt(key)) {
                 int id = Integer.parseInt(key);
                 value = array.get(id);
@@ -469,7 +479,19 @@ public class Scenario extends LogSupport implements ScenarioPart {
                 if (key.contains(".")) {
                     String id = S.cut(key).beforeFirst(".");
                     String prop = S.cut(key).afterFirst(".");
-                    if (S.isInt(id)) {
+                    if ("?".equals(key) || "<any>".equalsIgnoreCase(key)) {
+                        for (Object arrayElement: array) {
+                            if (!(arrayElement instanceof JSONObject)) {
+                                continue;
+                            }
+                            try {
+                                verifyValue(((JSONObject) arrayElement).get(prop), test);
+                                return;
+                            } catch (Exception e) {
+                                // try next one
+                            }
+                        }
+                    } else if (S.isInt(id)) {
                         int i = Integer.parseInt(id);
                         Object o = array.get(i);
                         if (o instanceof JSONObject) {
@@ -482,7 +504,7 @@ public class Scenario extends LogSupport implements ScenarioPart {
                     throw E.unexpected("Unknown attribute of array verification: %s", key);
                 }
             }
-            verifyValue(value, entry.getValue());
+            verifyValue(value, test);
         }
     }
 

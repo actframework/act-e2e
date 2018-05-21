@@ -1,5 +1,8 @@
 # act-e2e CHANGE LOG
 
+0.0.5 - 21/May/2018
+* Support testing objects in unorderred list #4
+
 0.0.4 - 20/May/2018
 * It shall support verifying JSONObject in a list #3
 
