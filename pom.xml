@@ -20,7 +20,7 @@
 
   <artifactId>act-e2e</artifactId>
   <packaging>jar</packaging>
-  <version>0.0.5-SNAPSHOT</version>
+  <version>0.0.5</version>
 
   <name>ACT E2E Plugin</name>
   <description>Support end to end test of ActFramework application</description>
