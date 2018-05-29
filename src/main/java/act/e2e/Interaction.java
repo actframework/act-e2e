@@ -39,8 +39,10 @@ public class Interaction implements ScenarioPart {
     public void validate() throws UnexpectedException {
         E.unexpectedIf(S.blank(description), "description is blank");
         E.unexpectedIf(null == request, "request spec not specified");
-        E.unexpectedIf(null == response, "response spec not specified");
+        //E.unexpectedIf(null == response, "response spec not specified");
         request.validate();
-        response.validate();
+        if (null != response) {
+            response.validate();
+        }
     }
 }

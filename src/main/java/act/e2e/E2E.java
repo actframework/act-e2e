@@ -81,7 +81,15 @@ public class E2E extends LogSupport {
         List<Dao> toBeDeleted = new ArrayList<>();
         for (DbService svc : dbServiceManager.registeredServices()) {
             for (Class entityClass : svc.entityClasses()) {
-                toBeDeleted.add(dbServiceManager.dao(entityClass));
+                try {
+                    toBeDeleted.add(dbServiceManager.dao(entityClass));
+                } catch (IllegalArgumentException e) {
+                    if (e.getMessage().contains("Cannot find out Dao for model type")) {
+                        // ignore - must be caused by MappedSuperClass
+                        logger.debug(e, "error getting dao for %s", entityClass);
+                        continue;
+                    }
+                }
             }
         }
         /*

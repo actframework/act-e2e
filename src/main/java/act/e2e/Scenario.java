@@ -28,6 +28,7 @@ import act.app.App;
 import act.e2e.macro.Macro;
 import act.e2e.req_modifier.RequestModifier;
 import act.e2e.util.CookieStore;
+import act.e2e.util.JSONTraverser;
 import act.e2e.util.RequestTemplateManager;
 import act.e2e.util.ScenarioManager;
 import act.e2e.verifier.Verifier;
@@ -151,16 +152,7 @@ public class Scenario extends LogSupport implements ScenarioPart {
                 val = lastData.get();
             } else {
                 Object lastObj = lastData.get();
-                if (lastObj instanceof JSONArray) {
-                    if (S.isInt(ref)) {
-                        val = ((JSONArray) lastObj).get(Integer.parseInt(ref));
-                    } else {
-                        throw E.unexpected("Invalid last reference, expect number, found: " + ref);
-                    }
-                } else {
-                    JSONObject json = (JSONObject) lastObj;
-                    val = json.get(ref);
-                }
+                return JSONTraverser.traverse(lastObj, ref);
             }
             return val;
         }
@@ -179,7 +171,7 @@ public class Scenario extends LogSupport implements ScenarioPart {
                 a = n;
                 E.illegalArgumentIf(n < -1, "Invalid string: " + s);
                 String part = s.substring(z + 2, a);
-                E.illegalArgumentIf(!part.startsWith("last:"), "Unknown substitution: " + s);
+                E.illegalArgumentIf(!(part.startsWith("last:") || part.startsWith("last|")), "Unknown substitution: " + s);
                 String payload = part.substring(5);
                 buf.append(getLastVal(payload));
                 n = s.indexOf("${", a);

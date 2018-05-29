@@ -1,5 +1,9 @@
 # act-e2e CHANGE LOG
 
+0.0.6 - 28/May/2018
+* Support getting last object's value through traversal path #7
+* `IllegalArgumentException` encountered during clear fixture process #6
+
 0.0.5 - 28/May/2018
 * Support testing html response #5
 * Support testing objects in unorderred list #4
