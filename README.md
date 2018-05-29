@@ -123,7 +123,7 @@ Scenario(task-service):
     - description: Retrieve the Task just created
       request:
         method: GET
-        url: /tasks/${last:id}
+        url: /tasks/${last:0.id}
       response:
         json:
           id: <any>
@@ -148,7 +148,15 @@ First make sure you have act-e2e plugin dependency in your `pom.xml` file:
 </dependency>
 ```
 
-At the moment the version of act-e2e version is `0.0.1`
+At the moment the version of act-e2e version is `0.0.6`. Note if your have the following parent in your pom.xml file you get act-e2e-0.0.6 automatically, no need to add it into your dependency.
+
+```xml
+ <parent>
+    <groupId>org.actframework</groupId>
+    <artifactId>act-starter-parent</artifactId>
+    <version>1.8.8.4</version>
+</parent>
+```
 
 Now you can run end to end test of the app using `e2e` profile:
 
