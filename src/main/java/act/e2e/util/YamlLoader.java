@@ -9,9 +9,9 @@ package act.e2e.util;
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -25,6 +25,7 @@ import act.app.App;
 import act.app.DaoLocator;
 import act.conf.AppConfig;
 import act.db.Dao;
+import act.db.sql.tx.TxContext;
 import com.alibaba.fastjson.JSONObject;
 import org.osgl.$;
 import org.osgl.Lang;
@@ -42,6 +43,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import javax.persistence.RollbackException;
 
 public class YamlLoader {
 
@@ -68,7 +70,7 @@ public class YamlLoader {
      *
      * ```yaml
      * User(tom)
-     *   name: Tom
+     * name: Tom
      * ```
      *
      * The model type `User` does not contains `.`, so the loader assume it
@@ -86,13 +88,13 @@ public class YamlLoader {
      *
      * ```yaml
      * com.xproj.model.User(tom)
-     *   name: Tom
+     * name: Tom
      * ```
      *
      * @param modelPackage
      * @param modelPackages
      */
-    protected YamlLoader(String modelPackage, String ... modelPackages) {
+    protected YamlLoader(String modelPackage, String... modelPackages) {
         resetModelPackages();
         loadConfig();
         addModelPackages(modelPackage, modelPackages);
@@ -119,8 +121,9 @@ public class YamlLoader {
 
     /**
      * Read the data YAML file and returns List of model objects mapped to their class names
+     *
      * @param yaml
-     *      the yaml content
+     *         the yaml content
      * @return the loaded data mapped to name
      */
     public Map<String, Object> parse(String yaml, DaoLocator daoLocator) {
@@ -145,7 +148,7 @@ public class YamlLoader {
                     throw E.unexpected("Duplicate id '" + id + "' for type " + type);
                 }
 
-                Map entityValues =  objects.get(key);
+                Map entityValues = objects.get(key);
                 Dao dao = null == daoLocator ? null : daoLocator.dao(modelType);
                 resolveDependencies(entityValues, mapCache, entityCache, dao);
                 mapCache.put(id, entityValues);
@@ -159,7 +162,18 @@ public class YamlLoader {
                         })
                         .to(entity);
                 if (null != dao) {
-                    dao.save(entity);
+                    TxContext.enterTxScope(false);
+                    try {
+                        dao.save(entity);
+                        TxContext.exitTxScope();
+                    } catch (RollbackException e) {
+                        throw e;
+                    } catch (RuntimeException e) {
+                        TxContext.exitTxScope(e);
+                        throw e;
+                    } finally {
+                        TxContext.clear();
+                    }
                 }
                 if (null != id) {
                     entityCache.put(id, entity);
@@ -204,7 +218,7 @@ public class YamlLoader {
         this.modelPackages.add("java.lang.");
     }
 
-    protected void addModelPackages(String modelPackage, String ... modelPackages) {
+    protected void addModelPackages(String modelPackage, String... modelPackages) {
         this.addModelPackage(modelPackage);
         for (String s : modelPackages) {
             this.addModelPackage(s);
@@ -221,7 +235,7 @@ public class YamlLoader {
     }
 
     private void resolveDependencies(Map<String, Object> objects, Map<String, Map<String, Object>> mapCache, Map<String, Object> entityCache, Dao dao) {
-        for (String k: objects.keySet()) {
+        for (String k : objects.keySet()) {
             Object v = objects.get(k);
             if (v instanceof Map) {
                 resolveDependencies((Map) v, mapCache, entityCache, dao);

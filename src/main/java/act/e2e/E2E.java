@@ -20,10 +20,12 @@ package act.e2e;
  * #L%
  */
 
+import act.Act;
 import act.app.App;
 import act.app.DbServiceManager;
 import act.db.Dao;
 import act.db.DbService;
+import act.db.sql.tx.TxContext;
 import act.e2e.macro.Macro;
 import act.e2e.req_modifier.RequestModifier;
 import act.e2e.util.RequestTemplateManager;
@@ -33,6 +35,7 @@ import act.e2e.verifier.Verifier;
 import act.job.OnAppStart;
 import act.sys.Env;
 import act.util.LogSupport;
+import org.osgl.$;
 import org.osgl.logging.LogManager;
 import org.osgl.logging.Logger;
 import org.osgl.mvc.annotation.DeleteAction;
@@ -43,7 +46,7 @@ import java.util.List;
 import java.util.Map;
 import javax.inject.Inject;
 
-@Env.RequireProfile("e2e")
+@Env.RequireMode(Act.Mode.DEV)
 public class E2E extends LogSupport {
 
     private static final Logger LOGGER = LogManager.get(E2E.class);
@@ -95,10 +98,18 @@ public class E2E extends LogSupport {
             List<Dao> list = new ArrayList<>(toBeDeleted);
             for (Dao dao : list) {
                 try {
+                    TxContext.enterTxScope(false);
                     dao.drop();
+                    try {
+                        TxContext.exitTxScope();
+                    } catch (Exception e) {
+                        continue;
+                    }
                     toBeDeleted.remove(dao);
                 } catch (Exception e) {
-                    // ignore
+                    TxContext.exitTxScope(e);
+                } finally {
+                    TxContext.clear();
                 }
             }
         }
@@ -107,7 +118,10 @@ public class E2E extends LogSupport {
     // wait 1 seconds to allow app setup the network
     @OnAppStart(delayInSeconds = 1)
     public void run(App app) {
-        run(app, true);
+        boolean run = $.bool(app.config().get("e2e.run")) || "e2e".equalsIgnoreCase(Act.profile());
+        if (run) {
+            run(app, true);
+        }
     }
 
     public List<Scenario> run(App app, boolean shutdownApp) {

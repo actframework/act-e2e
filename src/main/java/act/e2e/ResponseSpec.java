@@ -31,6 +31,7 @@ public class ResponseSpec implements ScenarioPart {
 
     public H.Status status;
     public Object text;
+    public Map<String, Object> html = new HashMap<>();
     public Map<String, Object> json = new HashMap<>();
     public Map<String, Object> headers = new HashMap<>();
 
@@ -52,6 +53,9 @@ public class ResponseSpec implements ScenarioPart {
             return;
         }
         if (!json.isEmpty()) {
+            return;
+        }
+        if (!html.isEmpty()) {
             return;
         }
         if (headers.isEmpty()) {

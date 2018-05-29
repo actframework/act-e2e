@@ -36,6 +36,10 @@ import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import okhttp3.*;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
 import org.osgl.$;
 import org.osgl.exception.UnexpectedException;
 import org.osgl.http.H;
@@ -284,14 +288,14 @@ public class Scenario extends LogSupport implements ScenarioPart {
         run(RequestSpec.RS_CLEAR_FIXTURE, null);
     }
 
-    protected void error(String format, Object ... args) {
+    protected void error(String format, Object... args) {
         E.illegalStateIf(null == currentInteraction, "no current interaction");
         String errorMessage = S.fmt(format, args);
         super.error(errorMessage);
         errorMessages.put(currentInteraction, errorMessage);
     }
 
-    protected void error(Throwable t, String format, Object ... args) {
+    protected void error(Throwable t, String format, Object... args) {
         E.illegalStateIf(null == currentInteraction, "no current interaction");
         String errorMessage = S.fmt(format, args);
         super.error(t, errorMessage);
@@ -351,7 +355,7 @@ public class Scenario extends LogSupport implements ScenarioPart {
 
     private void run(Interaction interaction) {
         currentInteraction = interaction;
-        for (Macro macro: interaction.preActions) {
+        for (Macro macro : interaction.preActions) {
             macro.run(this);
         }
         try {
@@ -361,7 +365,7 @@ public class Scenario extends LogSupport implements ScenarioPart {
             error("[FAIL] " + interaction.description);
             throw e;
         }
-        for (Macro macro: interaction.postActions) {
+        for (Macro macro : interaction.postActions) {
             macro.run(this);
         }
     }
@@ -433,17 +437,15 @@ public class Scenario extends LogSupport implements ScenarioPart {
     }
 
     private void verifyBody(Response rs, ResponseSpec spec) throws IOException {
-        String bodyString;
+        String bodyString = S.string(rs.body().string()).trim();
         if (null != spec.text) {
-            bodyString = rs.body().string();
             lastData.set(bodyString);
             verifyValue(bodyString, spec.text);
-        } else if (null != spec.json) {
-            bodyString = S.string(rs.body().string()).trim();
+        } else if (null != spec.json && !spec.json.isEmpty()) {
             if (bodyString.startsWith("[")) {
                 JSONArray array = JSON.parseArray(bodyString);
                 lastData.set(array);
-                verifyJsonArray(array, spec.json);
+                verifyList(array, spec.json);
             } else if (bodyString.startsWith("{")) {
                 JSONObject obj = JSON.parseObject(bodyString);
                 lastData.set(obj);
@@ -451,11 +453,19 @@ public class Scenario extends LogSupport implements ScenarioPart {
             } else {
                 E.unexpected("Unknown JSON string: \n%s", bodyString);
             }
+        } else if (null != spec.html && !spec.html.isEmpty()) {
+            lastData.set(bodyString);
+            Document doc = Jsoup.parse(bodyString, S.concat("http://localhost:", port, "/"));
+            for (Map.Entry<String, Object> entry : spec.html.entrySet()) {
+                String path = entry.getKey();
+                Elements elements = doc.select(path);
+                verifyValue(elements, entry.getValue());
+            }
         }
     }
 
-    private void verifyJsonArray(JSONArray array, Map<String, Object> jsonSpec) {
-        for (Map.Entry<String, Object> entry : jsonSpec.entrySet()) {
+    private void verifyList(List array, Map<String, Object> spec) {
+        for (Map.Entry<String, Object> entry : spec.entrySet()) {
             String key = entry.getKey();
             Object test = entry.getValue();
             Object value = null;
@@ -464,7 +474,7 @@ public class Scenario extends LogSupport implements ScenarioPart {
             } else if ("toString".equals(key) || "string".equals(key) || "str".equals(key)) {
                 value = JSON.toJSONString(array);
             } else if ("?".equals(key) || "<any>".equalsIgnoreCase(key)) {
-                for (Object arrayElement: array) {
+                for (Object arrayElement : array) {
                     try {
                         verifyValue(arrayElement, test);
                         return;
@@ -479,8 +489,8 @@ public class Scenario extends LogSupport implements ScenarioPart {
                 if (key.contains(".")) {
                     String id = S.cut(key).beforeFirst(".");
                     String prop = S.cut(key).afterFirst(".");
-                    if ("?".equals(key) || "<any>".equalsIgnoreCase(key)) {
-                        for (Object arrayElement: array) {
+                    if ("?".equals(id) || "<any>".equalsIgnoreCase(id)) {
+                        for (Object arrayElement : array) {
                             if (!(arrayElement instanceof JSONObject)) {
                                 continue;
                             }
@@ -519,37 +529,52 @@ public class Scenario extends LogSupport implements ScenarioPart {
     private void verifyValue(Object value, Object test) {
         if (test instanceof List) {
             verifyValue_(value, (List) test);
+        } else if (value instanceof List && test instanceof Map) {
+            verifyList((List) value, (Map) test);
         } else {
-            if ($.eq(value, test)) {
+            if (matches(value, test)) {
                 return;
-            } else {
-                if (value instanceof JSONObject) {
-                    E.unexpectedIfNot(test instanceof Map, "Cannot verify value[%s] with test [%s]", value, test);
-                    JSONObject json = (JSONObject) value;
-                    Map<String, ?> testMap = (Map) test;
-                    for (Map.Entry<?, ?> entry : testMap.entrySet()) {
-                        Object testKey = entry.getKey();
-                        Object testValue = entry.getValue();
-                        Object attr = json.get(testKey);
-                        verifyValue(attr, testValue);
-                    }
-                } else if (test instanceof String) {
-                    if (null != value && ("*".equals(test) || "...".equals(test) || "<any>".equals(test))) {
-                        return;
-                    }
-                    try {
-                        Pattern p = Pattern.compile((String) test);
-                        E.unexpectedIfNot(p.matcher((String) value).matches(), "Cannot verify value[%s] with test [%s]", value, test);
-                        return;
-                    } catch (Exception e) {
-                        // ignore
-                    }
-                    Verifier v = tryLoadVerifier((String) test);
-                    if (null != v && v.verify(value)) {
-                        return;
-                    }
-                    E.unexpected("Cannot verify value[%s] with test [%s]", value, test);
+            }
+            if (value instanceof JSONObject) {
+                E.unexpectedIfNot(test instanceof Map, "Cannot verify value[%s] with test [%s]", value, test);
+                JSONObject json = (JSONObject) value;
+                Map<String, ?> testMap = (Map) test;
+                for (Map.Entry<?, ?> entry : testMap.entrySet()) {
+                    Object testKey = entry.getKey();
+                    Object testValue = entry.getValue();
+                    Object attr = json.get(testKey);
+                    verifyValue(attr, testValue);
                 }
+            } else if (value instanceof Elements) {
+                if (test instanceof Map) {
+                    verifyList((Elements)value, (Map)test);
+                } else {
+                    Elements elements = (Elements) value;
+                    if (elements.isEmpty()) {
+                        value = null;
+                    } else {
+                        value = elements.first();
+                    }
+                    verifyValue(value, test);
+                }
+            } else if (test instanceof String) {
+                if (null != value && ("*".equals(test) || "...".equals(test) || "<any>".equals(test))) {
+                    return;
+                }
+                try {
+                    Pattern p = Pattern.compile((String) test);
+                    E.unexpectedIfNot(p.matcher((String) value).matches(), "Cannot verify value[%s] with test [%s]", value, test);
+                    return;
+                } catch (Exception e) {
+                    // ignore
+                }
+                Verifier v = tryLoadVerifier((String) test);
+                if (null != v && v.verify(value)) {
+                    return;
+                }
+                E.unexpected("Cannot verify value[%s] with test [%s]", value, test);
+            } else {
+                E.unexpected("Cannot verify value[%s] with test [%s]", value, test);
             }
         }
     }
@@ -560,10 +585,10 @@ public class Scenario extends LogSupport implements ScenarioPart {
             List found = (List) value;
             boolean ok = found.size() == tests.size();
             if (ok) {
-                for (int i = 0 ; i < found.size(); ++i) {
+                for (int i = 0; i < found.size(); ++i) {
                     Object foundElement = found.get(i);
                     Object testElement = tests.get(i);
-                    if ($.ne(foundElement, testElement)) {
+                    if (!matches(foundElement, testElement)) {
                         ok = false;
                         break;
                     }
@@ -574,14 +599,68 @@ public class Scenario extends LogSupport implements ScenarioPart {
             }
         }
         // now try verifiers
+        if (value instanceof Elements) {
+            Elements elements = (Elements) value;
+            if (elements.size() > 0) {
+                value = elements.first();
+            } else {
+                value = null;
+            }
+        }
         for (Object test : tests) {
             E.unexpectedIfNot(test instanceof Map, "Cannot verify value[%s] against test[%s]", value, test);
             Map<?, ?> map = (Map) test;
             E.unexpectedIfNot(map.size() == 1, "Cannot verify value[%s] against test[%s]", value, test);
             Verifier v = $.convert(map).to(Verifier.class);
             E.unexpectedIf(null == v, "Cannot verify value[%s] against test[%s]", value, test);
-            E.unexpectedIf(!v.verify(value), "Cannot verify value[%s] against test[%s]", value, v);
+            E.unexpectedIf(!verify(v, value), "Cannot verify value[%s] against test[%s]", value, v);
         }
+    }
+
+    private boolean verify(Verifier test, Object value) {
+        if (test.verify(value)) {
+            return true;
+        }
+        if (value instanceof Element) {
+            Element e = (Element) value;
+            if (test.verify(e.val())) {
+                return true;
+            }
+            if (test.verify(e.text())) {
+                return true;
+            }
+            if (test.verify(e.html())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean matches(Object a, Object b) {
+        if ($.eq(a, b)) {
+            return true;
+        }
+        if (!((b instanceof String) && (a instanceof Element))) {
+            return false;
+        }
+        String test = S.string(b);
+        Element element = (Element) a;
+        // try html
+        String html = element.html();
+        if (S.eq(html, test, S.IGNORECASE)) {
+            return true;
+        }
+        // try text
+        String text = element.text();
+        if (S.eq(text, test, S.IGNORECASE)) {
+            return true;
+        }
+        // try val
+        String val = element.val();
+        if (S.eq(val, test, S.IGNORECASE)) {
+            return true;
+        }
+        return false;
     }
 
     private Class<?> tryLoadClass(String name) {

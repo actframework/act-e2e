@@ -26,9 +26,6 @@ import act.Act;
 import act.app.ActionContext;
 import act.app.App;
 import act.handler.RequestHandlerBase;
-import act.job.OnAppStart;
-import act.route.RouteSource;
-import act.route.Router;
 import act.sys.Env;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
@@ -37,6 +34,7 @@ import org.osgl.http.H;
 import org.osgl.mvc.annotation.GetAction;
 
 import java.util.List;
+import javax.inject.Inject;
 import javax.inject.Singleton;
 
 /**
@@ -94,21 +92,13 @@ public class ScenarioDebugHelper {
     }
 
 
+    @Inject
     private E2E e2e;
 
     @GetAction("e2e")
     public void run(App app) {
         List<Scenario> scenarios = e2e.run(app, false);
         renderTemplate("/~e2e.html", scenarios);
-    }
-
-    @OnAppStart
-    @Env.RequireProfile(value = "e2e", except = true)
-    public void init(App app) {
-        this.e2e = app.getInstance(E2E.class);
-        Router router = app.router();
-        router.addMapping(H.Method.POST, "~/e2e/fixtures", new LoadFixtures(e2e), RouteSource.BUILD_IN);
-        router.addMapping(H.Method.DELETE, "~/e2e/fixtures", new ClearFixtures(e2e), RouteSource.BUILD_IN);
     }
 
 }

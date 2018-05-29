@@ -1,0 +1,7 @@
+c    - description: send request to the app with [who = ActFramework]
+      request:
+        method: GET
+        url: /?who=ActFramework
+      response:
+        html:
+          h1: Hello ActFramework

@@ -35,13 +35,14 @@
   <parent>
     <groupId>org.actframework</groupId>
     <artifactId>parent</artifactId>
-    <version>1.8.8-RC7</version>
+    <version>1.8.8-RC8</version>
   </parent>
 
   <properties>
     <scm.url>git@github.com:actframework/act-e2e.git</scm.url>
     <snakeyaml.version>1.21</snakeyaml.version>
     <jsoup.version>1.11.3</jsoup.version>
+    <act-sql-common.version>1.4.0</act-sql-common.version>
   </properties>
 
   <scm>
@@ -62,6 +63,12 @@
       <groupId>org.jsoup</groupId>
       <artifactId>jsoup</artifactId>
       <version>${jsoup.version}</version>
+    </dependency>
+
+    <dependency>
+      <groupId>org.actframework</groupId>
+      <artifactId>act-sql-common</artifactId>
+      <version>${act-sql-common.version}</version>
     </dependency>
 
   </dependencies>
