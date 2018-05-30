@@ -24,16 +24,15 @@ import com.alibaba.fastjson.JSON;
 import org.osgl.exception.UnexpectedException;
 import org.osgl.http.H;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.LinkedHashMap;
 
 public class ResponseSpec implements ScenarioPart {
 
     public H.Status status;
     public Object text;
-    public Map<String, Object> html = new HashMap<>();
-    public Map<String, Object> json = new HashMap<>();
-    public Map<String, Object> headers = new HashMap<>();
+    public LinkedHashMap<String, Object> html = new LinkedHashMap<>();
+    public LinkedHashMap<String, Object> json = new LinkedHashMap<>();
+    public LinkedHashMap<String, Object> headers = new LinkedHashMap<>();
 
     @Override
     public void validate() throws UnexpectedException {

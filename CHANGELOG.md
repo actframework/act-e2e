@@ -1,5 +1,8 @@
 # act-e2e CHANGE LOG
 
+0.0.7 - 30/May/2018
+* Use `LinkedHashMap` for Request and Response internal data structure #12
+
 0.0.6 - 28/May/2018
 * Support getting last object's value through traversal path #7
 * `IllegalArgumentException` encountered during clear fixture process #6

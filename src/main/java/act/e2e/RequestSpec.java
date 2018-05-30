@@ -30,10 +30,7 @@ import org.osgl.http.H;
 import org.osgl.util.C;
 import org.osgl.util.E;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class RequestSpec implements ScenarioPart {
 
@@ -45,8 +42,8 @@ public class RequestSpec implements ScenarioPart {
     public Boolean json;
     public Boolean ajax;
     public List<RequestModifier> modifiers = new ArrayList<>();
-    public Map<String, Object> params = new HashMap<>();
-    public Map<String, Object> headers = new HashMap<>();
+    public Map<String, Object> params = new LinkedHashMap<>();
+    public Map<String, Object> headers = new LinkedHashMap<>();
     public String jsonBody;
 
     private boolean resolved;
