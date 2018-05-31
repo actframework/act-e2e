@@ -1,5 +1,8 @@
 # act-e2e CHANGE LOG
 
+0.0.8
+* Provide a mechanism to store/fetch a data with name #11
+
 0.0.7 - 30/May/2018
 * Use `LinkedHashMap` for Request and Response internal data structure #12
 

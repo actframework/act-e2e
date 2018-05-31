@@ -26,7 +26,9 @@ import org.osgl.util.E;
 import org.osgl.util.S;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class Interaction implements ScenarioPart {
     public List<Macro> preActions = new ArrayList<>();
@@ -34,6 +36,7 @@ public class Interaction implements ScenarioPart {
     public RequestSpec request;
     public ResponseSpec response;
     public List<Macro> postActions = new ArrayList<>();
+    public Map<String, String> memory = new HashMap<>();
 
     @Override
     public void validate() throws UnexpectedException {

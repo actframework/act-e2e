@@ -61,6 +61,9 @@ Scenario(create-task):
           size: 5
           toString: "[1, 2, 3, 4, 5]"
           3: 4
+      postAction:
+        remember:
+
     - description: Create the second course with name "Math"\n * name param without `cours.` prefix
       request:
         method: POST

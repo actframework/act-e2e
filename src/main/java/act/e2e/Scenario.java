@@ -51,13 +51,12 @@ import org.osgl.util.S;
 
 import java.io.IOException;
 import java.net.URL;
-import java.util.ArrayList;
-import java.util.IdentityHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.regex.Pattern;
 
 public class Scenario extends LogSupport implements ScenarioPart {
+
+    private static final ThreadLocal<Scenario> current = new ThreadLocal<>();
 
     private static final RequestBody EMPTY_BODY = RequestBody.create(null, "");
 
@@ -141,20 +140,12 @@ public class Scenario extends LogSupport implements ScenarioPart {
                     if (sVal.startsWith("last:") || sVal.startsWith("last|")) {
                         String ref = sVal.substring(5);
                         entry.setValue(getLastVal(ref));
+                    } else if (sVal.contains("${")) {
+                        sVal = processStringSubstitution(sVal);
+                        entry.setValue(sVal);
                     }
                 }
             }
-        }
-
-        private Object getLastVal(String ref) {
-            Object val;
-            if (S.blank(ref)) {
-                val = lastData.get();
-            } else {
-                Object lastObj = lastData.get();
-                return JSONTraverser.traverse(lastObj, ref);
-            }
-            return val;
         }
 
         private String processStringSubstitution(String s) {
@@ -171,9 +162,14 @@ public class Scenario extends LogSupport implements ScenarioPart {
                 a = n;
                 E.illegalArgumentIf(n < -1, "Invalid string: " + s);
                 String part = s.substring(z + 2, a);
-                E.illegalArgumentIf(!(part.startsWith("last:") || part.startsWith("last|")), "Unknown substitution: " + s);
-                String payload = part.substring(5);
-                buf.append(getLastVal(payload));
+                String key = part;
+                String payload = "";
+                if (part.contains(":")) {
+                    S.Binary binary = S.binarySplit(part, ':');
+                    key = binary.first();
+                    payload = binary.second();
+                }
+                buf.append(getVal(key, payload));
                 n = s.indexOf("${", a);
                 if (n < 0) {
                     buf.append(s.substring(a + 1));
@@ -232,11 +228,21 @@ public class Scenario extends LogSupport implements ScenarioPart {
     private RequestTemplateManager requestTemplateManager;
     private transient Interaction currentInteraction;
 
+    private Map<String, Object> memory = new HashMap<>();
+
     public Scenario() {
         app = Act.app();
         if (null != app) {
             port = app.config().httpPort();
         }
+    }
+
+    public void remember(String name, Object payload) {
+        memory.put(name, payload);
+    }
+
+    public Object memory(String name) {
+        return memory.get(name);
     }
 
     public boolean pass(Interaction interaction) {
@@ -263,6 +269,7 @@ public class Scenario extends LogSupport implements ScenarioPart {
         this.errorMessages = new IdentityHashMap<>();
         this.scenarioManager = $.requireNotNull(scenarioManager);
         this.requestTemplateManager = $.requireNotNull(requestTemplateManager);
+        current.set(this);
         validate();
         long ms = $.ms();
         printBanner();
@@ -359,6 +366,13 @@ public class Scenario extends LogSupport implements ScenarioPart {
         }
         for (Macro macro : interaction.postActions) {
             macro.run(this);
+        }
+        for (Map.Entry<String, String> entry : interaction.memory.entrySet()) {
+            String ref = entry.getValue();
+            Object value = getLastVal(ref);
+            if (null != value) {
+                memory.put(entry.getKey(), value);
+            }
         }
     }
 
@@ -675,5 +689,12 @@ public class Scenario extends LogSupport implements ScenarioPart {
         return null;
     }
 
+    private Object getVal(String key, String ref) {
+        Object stuff = "last".equals(key) ? lastData.get() : memory.get(key);
+        return S.blank(ref) ? stuff : JSONTraverser.traverse(stuff, ref);
+    }
 
+    private Object getLastVal(String ref) {
+        return getVal("last", ref);
+    }
 }
