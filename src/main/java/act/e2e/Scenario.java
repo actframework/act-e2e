@@ -367,7 +367,7 @@ public class Scenario extends LogSupport implements ScenarioPart {
         for (Macro macro : interaction.postActions) {
             macro.run(this);
         }
-        for (Map.Entry<String, String> entry : interaction.memory.entrySet()) {
+        for (Map.Entry<String, String> entry : interaction.cache.entrySet()) {
             String ref = entry.getValue();
             Object value = getLastVal(ref);
             if (null != value) {

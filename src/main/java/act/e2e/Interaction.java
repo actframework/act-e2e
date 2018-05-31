@@ -36,7 +36,7 @@ public class Interaction implements ScenarioPart {
     public RequestSpec request;
     public ResponseSpec response;
     public List<Macro> postActions = new ArrayList<>();
-    public Map<String, String> memory = new HashMap<>();
+    public Map<String, String> cache = new HashMap<>();
 
     @Override
     public void validate() throws UnexpectedException {
