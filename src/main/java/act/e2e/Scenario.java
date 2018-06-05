@@ -20,19 +20,22 @@ package act.e2e;
  * #L%
  */
 
+import static act.e2e.E2E.Status.PENDING;
+import static act.e2e.util.ErrorMessage.error;
+import static act.e2e.util.ErrorMessage.errorIf;
+import static act.e2e.util.ErrorMessage.errorIfNot;
 import static org.osgl.http.H.Header.Names.ACCEPT;
 import static org.osgl.http.H.Header.Names.X_REQUESTED_WITH;
 
 import act.Act;
 import act.app.App;
-import act.e2e.macro.Macro;
+import act.e2e.E2E.Status;
 import act.e2e.req_modifier.RequestModifier;
 import act.e2e.util.CookieStore;
 import act.e2e.util.JSONTraverser;
 import act.e2e.util.RequestTemplateManager;
 import act.e2e.util.ScenarioManager;
 import act.e2e.verifier.Verifier;
-import act.util.LogSupport;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
@@ -44,6 +47,7 @@ import org.jsoup.select.Elements;
 import org.osgl.$;
 import org.osgl.exception.UnexpectedException;
 import org.osgl.http.H;
+import org.osgl.logging.Logger;
 import org.osgl.util.Codec;
 import org.osgl.util.E;
 import org.osgl.util.IO;
@@ -54,7 +58,9 @@ import java.net.URL;
 import java.util.*;
 import java.util.regex.Pattern;
 
-public class Scenario extends LogSupport implements ScenarioPart {
+public class Scenario implements ScenarioPart {
+
+    private static final Logger LOGGER = E2E.LOGGER;
 
     private static final ThreadLocal<Scenario> current = new ThreadLocal<>();
 
@@ -218,17 +224,16 @@ public class Scenario extends LogSupport implements ScenarioPart {
     public List<String> fixtures = new ArrayList<>();
     public List<String> depends = new ArrayList<>();
     public List<Interaction> interactions = new ArrayList<>();
-    public boolean finished;
-    public Map<Interaction, String> errorMessages;
+    public Status status = PENDING;
+    public String errorMessage;
 
     $.Var<Object> lastData = $.var();
-    $.Var<Map<String, Object>> lastHeaders = $.var();
+    $.Var<Headers> lastHeaders = $.var();
 
-    private ScenarioManager scenarioManager;
-    private RequestTemplateManager requestTemplateManager;
-    private transient Interaction currentInteraction;
+    ScenarioManager scenarioManager;
+    RequestTemplateManager requestTemplateManager;
 
-    private Map<String, Object> memory = new HashMap<>();
+    private Map<String, Object> cache = new HashMap<>();
 
     public Scenario() {
         app = Act.app();
@@ -237,158 +242,139 @@ public class Scenario extends LogSupport implements ScenarioPart {
         }
     }
 
-    public void remember(String name, Object payload) {
-        memory.put(name, payload);
+    public String title() {
+        return S.blank(description) ? name : description;
     }
 
-    public Object memory(String name) {
-        return memory.get(name);
+    public void cache(String name, Object payload) {
+        cache.put(name, payload);
     }
 
-    public boolean pass(Interaction interaction) {
-        return !errorMessages.containsKey(interaction);
+    public Object cached(String name) {
+        return cache.get(name);
+    }
+
+    public Status statusOf(Interaction interaction) {
+        return interaction.status;
     }
 
     public String errorMessageOf(Interaction interaction) {
-        return errorMessages.get(interaction);
+        return interaction.errorMessage;
     }
 
     @Override
-    public void validate() throws UnexpectedException {
-        E.unexpectedIf(interactions.isEmpty(), "No interactions defined");
-        E.unexpectedIf(S.blank(name), "name is blank");
+    public void validate(Scenario scenario) throws UnexpectedException {
+        errorIf(interactions.isEmpty(), "No interactions");
+        errorIf(S.blank(name), "Scenario name not defined");
         for (Interaction interaction : interactions) {
-            interaction.validate();
+            interaction.validate(scenario);
         }
     }
 
     public void start(ScenarioManager scenarioManager, RequestTemplateManager requestTemplateManager) {
-        if (finished) {
-            return;
-        }
-        this.errorMessages = new IdentityHashMap<>();
         this.scenarioManager = $.requireNotNull(scenarioManager);
         this.requestTemplateManager = $.requireNotNull(requestTemplateManager);
+        this.status = PENDING;
         current.set(this);
-        validate();
-        long ms = $.ms();
-        printBanner();
+        validate(this);
         prepareHttp();
-        reset();
-        run();
-        printFooter($.ms() - ms);
+        boolean pass = reset() && run();
+        this.status = Status.of(pass);
     }
 
     public void clearSession() {
         cookieStore().clear();
     }
 
-    public void clearFixtures() {
-        run(RequestSpec.RS_CLEAR_FIXTURE, null);
+    public boolean clearFixtures() {
+        return verify(RequestSpec.RS_CLEAR_FIXTURE, "clearing fixtures");
     }
 
-    protected void error(String format, Object... args) {
-        E.illegalStateIf(null == currentInteraction, "no current interaction");
-        String errorMessage = S.fmt(format, args);
-        super.error(errorMessage);
-        errorMessages.put(currentInteraction, errorMessage);
+    void resolveRequest(RequestSpec req) {
+        req.resolveParent(requestTemplateManager);
     }
 
-    protected void error(Throwable t, String format, Object... args) {
-        E.illegalStateIf(null == currentInteraction, "no current interaction");
-        String errorMessage = S.fmt(format, args);
-        super.error(t, errorMessage);
-        errorMessages.put(currentInteraction, errorMessage);
+    Response sendRequest(RequestSpec req) throws IOException {
+        Request httpRequest = new RequestBuilder(req).build();
+        return http.newCall(httpRequest).execute();
     }
 
-    private void createFixtures() {
+    private boolean createFixtures() {
         if (fixtures.isEmpty()) {
-            return;
+            return true;
         }
         RequestSpec req = RequestSpec.loadFixtures(fixtures);
-        run(req, null);
+        return verify(req, "creating fixtures");
+    }
+
+    private boolean verify(RequestSpec req, String operation) {
+        boolean pass = true;
+        try {
+            Response resp = sendRequest(req);
+            if (!resp.isSuccessful()) {
+                pass = false;
+                errorMessage = "Fixtures loading failure";
+            }
+            return pass;
+        } catch (IOException e) {
+            errorMessage = "Error " + operation;
+            LOGGER.error(e, errorMessage);
+            return false;
+        }
     }
 
     private void prepareHttp() {
-        http = new OkHttpClient.Builder().cookieJar(cookieStore()).build();
+        http = new OkHttpClient.Builder()
+                .cookieJar(cookieStore())
+                .build();
     }
 
-    private void reset() {
+    private boolean reset() {
+        errorMessage = null;
         clearSession();
-        clearFixtures();
-        createFixtures();
+        return clearFixtures() && createFixtures();
     }
 
     private boolean run() {
-        boolean ok = false;
-        try {
-            ok = runDependents();
-            if (ok) {
-                runInteractions();
-            }
-            ok = true;
-        } catch ($.Break b) {
-            Exception e = b.get();
-            error(e, "error running scenario: " + name);
-        } catch (Exception e) {
-            error(e, "error running scenario: " + name);
+        if (status.finished()) {
+            return status.pass();
         }
-        finished = true;
-        return ok;
+        return runDependents() && runInteractions();
     }
 
     private boolean runDependents() {
         for (String dependent : depends) {
             if (!scenarioManager.get(dependent).run()) {
+                errorMessage = "dependency failure: " + dependent;
                 return false;
             }
         }
         return true;
     }
 
-    private void runInteractions() {
+    private boolean runInteractions() {
         for (Interaction interaction : interactions) {
-            run(interaction);
+            boolean pass = run(interaction);
+            if (!pass) {
+                return false;
+            }
         }
+        return true;
     }
 
-    private void run(Interaction interaction) {
-        currentInteraction = interaction;
-        for (Macro macro : interaction.preActions) {
-            macro.run(this);
-        }
-        try {
-            run(interaction.request, interaction.response);
-            info("[PASS] " + interaction.description);
-        } catch (RuntimeException e) {
-            error("[FAIL] " + interaction.description);
-            throw e;
-        }
-        for (Macro macro : interaction.postActions) {
-            macro.run(this);
+    private boolean run(Interaction interaction) {
+        boolean okay = interaction.run();
+        if (!okay) {
+            return false;
         }
         for (Map.Entry<String, String> entry : interaction.cache.entrySet()) {
             String ref = entry.getValue();
             Object value = getLastVal(ref);
             if (null != value) {
-                memory.put(entry.getKey(), value);
+                cache.put(entry.getKey(), value);
             }
         }
-    }
-
-    private void printBanner() {
-        printDoubleDashedLine();
-        info(name.toUpperCase());
-        if (S.notBlank(description)) {
-            println();
-            info(S.string(description));
-        }
-        printDashedLine();
-    }
-
-    private void printFooter(long duration) {
-        printDashedLine();
-        info("It takes %ss to run this scenario.\n", duration / 1000);
+        return true;
     }
 
     private synchronized CookieStore cookieStore() {
@@ -399,51 +385,7 @@ public class Scenario extends LogSupport implements ScenarioPart {
         return cookieStore;
     }
 
-    private void run(RequestSpec req, ResponseSpec rs) {
-        req.resolveParent(requestTemplateManager);
-        Request httpRequest = new RequestBuilder(req).build();
-        try {
-            Response httpResponse = http.newCall(httpRequest).execute();
-            verify(httpResponse, rs);
-        } catch (IOException e) {
-            throw E.ioException(e);
-        }
-    }
-
-    private void verify(Response rs, ResponseSpec spec) throws IOException {
-        if (null == spec) {
-            E.unexpectedIfNot(rs.isSuccessful());
-            return;
-        }
-        verifyStatus(rs, spec);
-        verifyHeaders(rs, spec);
-        verifyBody(rs, spec);
-    }
-
-    private void verifyStatus(Response rs, ResponseSpec spec) {
-        H.Status expectedStatus = spec.status;
-        if (null == expectedStatus) {
-            E.unexpectedIfNot(rs.isSuccessful(), "Error status returned");
-        } else {
-            E.unexpectedIfNot(rs.code() == expectedStatus.code(), "expected status: %s, found status: %s", expectedStatus.code(), rs.code());
-        }
-    }
-
-    private void verifyHeaders(Response rs, ResponseSpec spec) {
-        for (Map.Entry<String, Object> entry : spec.headers.entrySet()) {
-            String headerName = entry.getKey();
-            String headerVal = rs.header(headerName);
-            try {
-                verifyValue(headerVal, entry.getValue());
-            } catch (Exception e) {
-                E.unexpected(e, "failed verify header[%s]", headerName);
-            }
-        }
-        lastHeaders.set(spec.headers);
-    }
-
-    private void verifyBody(Response rs, ResponseSpec spec) throws IOException {
-        String bodyString = S.string(rs.body().string()).trim();
+    void verifyBody(String bodyString, ResponseSpec spec) throws IOException {
         if (null != spec.text) {
             lastData.set(bodyString);
             verifyValue(bodyString, spec.text);
@@ -457,7 +399,7 @@ public class Scenario extends LogSupport implements ScenarioPart {
                 lastData.set(obj);
                 verifyJsonObject(obj, spec.json);
             } else {
-                E.unexpected("Unknown JSON string: \n%s", bodyString);
+                error("Unknown JSON string: \n%s", bodyString);
             }
         } else if (null != spec.html && !spec.html.isEmpty()) {
             lastData.set(bodyString);
@@ -470,7 +412,7 @@ public class Scenario extends LogSupport implements ScenarioPart {
         }
     }
 
-    private void verifyList(List array, Map<String, Object> spec) {
+    void verifyList(List array, Map<String, Object> spec) {
         for (Map.Entry<String, Object> entry : spec.entrySet()) {
             String key = entry.getKey();
             Object test = entry.getValue();
@@ -517,14 +459,14 @@ public class Scenario extends LogSupport implements ScenarioPart {
                     }
                 }
                 if (null == value) {
-                    throw E.unexpected("Unknown attribute of array verification: %s", key);
+                    throw error("Unknown attribute of array verification: %s", key);
                 }
             }
             verifyValue(value, test);
         }
     }
 
-    private void verifyJsonObject(JSONObject obj, Map<String, Object> jsonSpec) {
+    void verifyJsonObject(JSONObject obj, Map<String, Object> jsonSpec) {
         for (Map.Entry<String, Object> entry : jsonSpec.entrySet()) {
             String key = entry.getKey();
             Object value = $.getProperty(obj, key);
@@ -532,7 +474,7 @@ public class Scenario extends LogSupport implements ScenarioPart {
         }
     }
 
-    private void verifyValue(Object value, Object test) {
+    void verifyValue(Object value, Object test) {
         if (test instanceof List) {
             verifyValue_(value, (List) test);
         } else if (value instanceof List && test instanceof Map) {
@@ -542,7 +484,7 @@ public class Scenario extends LogSupport implements ScenarioPart {
                 return;
             }
             if (value instanceof JSONObject) {
-                E.unexpectedIfNot(test instanceof Map, "Cannot verify value[%s] with test [%s]", value, test);
+                errorIfNot(test instanceof Map, "Cannot verify value[%s] with test [%s]", value, test);
                 JSONObject json = (JSONObject) value;
                 Map<String, ?> testMap = (Map) test;
                 for (Map.Entry<?, ?> entry : testMap.entrySet()) {
@@ -569,7 +511,7 @@ public class Scenario extends LogSupport implements ScenarioPart {
                 }
                 try {
                     Pattern p = Pattern.compile((String) test);
-                    E.unexpectedIfNot(p.matcher((String) value).matches(), "Cannot verify value[%s] with test [%s]", value, test);
+                    errorIfNot(p.matcher((String) value).matches(), "Cannot verify value[%s] with test [%s]", value, test);
                     return;
                 } catch (Exception e) {
                     // ignore
@@ -578,9 +520,9 @@ public class Scenario extends LogSupport implements ScenarioPart {
                 if (null != v && v.verify(value)) {
                     return;
                 }
-                E.unexpected("Cannot verify value[%s] with test [%s]", value, test);
+                error("Cannot verify value[%s] with test [%s]", value, test);
             } else {
-                E.unexpected("Cannot verify value[%s] with test [%s]", value, test);
+                error("Cannot verify value[%s] with test [%s]", value, test);
             }
         }
     }
@@ -614,12 +556,12 @@ public class Scenario extends LogSupport implements ScenarioPart {
             }
         }
         for (Object test : tests) {
-            E.unexpectedIfNot(test instanceof Map, "Cannot verify value[%s] against test[%s]", value, test);
+            errorIfNot(test instanceof Map, "Cannot verify value[%s] against test[%s]", value, test);
             Map<?, ?> map = (Map) test;
-            E.unexpectedIfNot(map.size() == 1, "Cannot verify value[%s] against test[%s]", value, test);
+            errorIfNot(map.size() == 1, "Cannot verify value[%s] against test[%s]", value, test);
             Verifier v = $.convert(map).to(Verifier.class);
-            E.unexpectedIf(null == v, "Cannot verify value[%s] against test[%s]", value, test);
-            E.unexpectedIf(!verify(v, value), "Cannot verify value[%s] against test[%s]", value, v);
+            errorIf(null == v, "Cannot verify value[%s] against test[%s]", value, test);
+            errorIf(!verify(v, value), "Cannot verify value[%s] against test[%s]", value, v);
         }
     }
 
@@ -690,11 +632,15 @@ public class Scenario extends LogSupport implements ScenarioPart {
     }
 
     private Object getVal(String key, String ref) {
-        Object stuff = "last".equals(key) ? lastData.get() : memory.get(key);
+        Object stuff = "last".equals(key) ? lastData.get() : cache.get(key);
         return S.blank(ref) ? stuff : JSONTraverser.traverse(stuff, ref);
     }
 
     private Object getLastVal(String ref) {
         return getVal("last", ref);
+    }
+
+    static Scenario get() {
+        return current.get();
     }
 }

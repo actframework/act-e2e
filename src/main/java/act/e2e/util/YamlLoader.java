@@ -41,6 +41,7 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.persistence.RollbackException;
@@ -132,8 +133,20 @@ public class YamlLoader {
         Map<String, Map<String, Object>> mapCache = C.newMap();
         Map<String, Object> entityCache = C.newMap();
         Map<String, Class> classCache = C.newMap();
+        Map<String, AtomicInteger> nameCounters = C.newMap();
         for (Object key : objects.keySet()) {
-            Matcher matcher = keyPattern.matcher(key.toString().trim());
+            String keyStr = key.toString().trim();
+            if (!keyStr.contains("(")) {
+                String type = keyStr.contains(".") ? S.cut(keyStr).afterLast(".") : keyStr;
+                type = S.camelCase(type);
+                AtomicInteger counter = nameCounters.get(type);
+                if (null == counter) {
+                    counter = new AtomicInteger();
+                    nameCounters.put(type, counter);
+                }
+                keyStr = keyStr + "(" + type + " - " + counter.getAndIncrement() + ")";
+            }
+            Matcher matcher = keyPattern.matcher(keyStr.trim());
             if (matcher.matches()) {
                 String type = matcher.group(1);
                 String id = matcher.group(2);

@@ -1,6 +1,10 @@
 # act-e2e CHANGE LOG
 
 0.0.8
+* Display error reason on e2e web UI #16
+* Add Empty verifier to check if a String response is empty #15
+* When run automated e2e test it show exit with an non-zero number #14
+* It shows the rest interactions passed with after one interaction failed #13
 * Provide a mechanism to store/fetch a data with name #11
 
 0.0.7 - 30/May/2018

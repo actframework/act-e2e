@@ -35,7 +35,7 @@ public class ResponseSpec implements ScenarioPart {
     public LinkedHashMap<String, Object> headers = new LinkedHashMap<>();
 
     @Override
-    public void validate() throws UnexpectedException {
+    public void validate(Scenario scenario) throws UnexpectedException {
         checkForEmpty();
     }
 

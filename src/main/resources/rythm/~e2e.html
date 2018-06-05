@@ -43,11 +43,17 @@
       list-style: none;
       padding-left: 0;
     }
-    .interactions li.pass {
-      color: #00ee00
+    .PASS {
+      color: #00ee00;
     }
-    .interactions li.fail {
-      color: #ee0000
+    .FAIL {
+      color: #ee0000;
+    }
+    .PENDING {
+      color: #ccc;
+    }
+    .error-message {
+      margin-left: 2em;
     }
   </style>
   @render(head)
@@ -55,19 +61,29 @@
 <body>
 <h1>End To End Test Result</h1>
 @for(Scenario scenario: scenarios) {
-<h4>@scenario.name.toUpperCase()</h4>
-
+<h4>
 @if(scenario.description) {
-<div class="desc">@scenario.description</div>
+  @scenario.description
+} else {
+  @scenario.name.toUpperCase()
+}
+</h4>
+
+
+@if(!scenario.status.pass() && null != scenario.errorMessage) {
+<div class="@scenario.status">
+  [@scenario.status] @scenario.errorMessage
+</div>
 }
 
 <ul class="interactions">
 @for (Interaction interaction: scenario.interactions) {
-  @if(scenario.pass(interaction)) {
-  <li class="pass">[pass] @interaction.description.capFirst()</li>
-  } else {
-  <li class="fail">[fail] @interaction.description.capFirst()</li>
-  }
+  <li class="@interaction.status">
+    [@interaction.status] @interaction.description.capFirst()
+    @if(interaction.errorMessage) {
+    <div class="error-message">- @interaction.errorMessage</div>
+    }
+  </li>
 }
 </ul>
 

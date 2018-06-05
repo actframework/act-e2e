@@ -21,12 +21,31 @@ package act.e2e.verifier;
  */
 
 import org.osgl.$;
+import org.osgl.util.C;
+import org.osgl.util.S;
+
+import java.util.List;
 
 public class Exists extends Verifier<Exists> {
 
     @Override
     public boolean verify(Object value) {
         boolean b = $.bool(initVal);
-        return (b && null != value) || (!b && null == value);
+        return b == exists(value);
+    }
+
+    @Override
+    protected List<String> aliases() {
+        return C.list("notEmpty");
+    }
+
+    private boolean exists(Object value) {
+        if (null == value) {
+            return false;
+        }
+        if (value instanceof String) {
+            return S.notEmpty((String) value);
+        }
+        return true;
     }
 }

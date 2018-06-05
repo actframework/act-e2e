@@ -40,6 +40,7 @@ import org.osgl.logging.LogManager;
 import org.osgl.logging.Logger;
 import org.osgl.mvc.annotation.DeleteAction;
 import org.osgl.mvc.annotation.PostAction;
+import org.osgl.util.S;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -49,7 +50,23 @@ import javax.inject.Inject;
 @Env.RequireMode(Act.Mode.DEV)
 public class E2E extends LogSupport {
 
-    private static final Logger LOGGER = LogManager.get(E2E.class);
+    public enum Status {
+        PENDING, PASS, FAIL;
+
+        public static Status of(boolean result) {
+            return result ? PASS : FAIL;
+        }
+
+        public boolean finished() {
+            return PENDING != this;
+        }
+
+        public boolean pass() {
+            return PASS == this;
+        }
+    }
+
+    static final Logger LOGGER = LogManager.get(E2E.class);
 
     @Inject
     private DbServiceManager dbServiceManager;
@@ -134,6 +151,7 @@ public class E2E extends LogSupport {
 
     public List<Scenario> run(App app, boolean shutdownApp) {
         info("Start running E2E test scenarios\n");
+        int exitCode = 0;
         try {
             registerTypeConverters();
             RequestTemplateManager requestTemplateManager = new RequestTemplateManager();
@@ -151,12 +169,47 @@ public class E2E extends LogSupport {
             for (Scenario scenario : scenarios.values()) {
                 addToList(scenario, list, scenarioManager);
             }
+            if (shutdownApp) {
+                for (Scenario scenario : list) {
+                    if (!scenario.status.pass()) {
+                        exitCode = -1;
+                    }
+                    output(scenario);
+                }
+            }
             return list;
+        } catch (Exception e) {
+            System.out.println("Error captured, setting exit code to -1");
+            exitCode = -1;
+            throw e;
         } finally {
             if (shutdownApp) {
-                app.shutdown();
+                app.shutdown(exitCode);
             }
         }
+    }
+
+    private void output(Scenario scenario) {
+        printBanner(scenario);
+        printInteractions(scenario);
+        printFooter();
+    }
+
+    private void printBanner(Scenario scenario) {
+        printDoubleDashedLine();
+        info(scenario.title());
+        printDashedLine();
+    }
+
+    private void printInteractions(Scenario scenario) {
+        for (Interaction interaction : scenario.interactions) {
+            String msg = S.concat("[", interaction.status, "]", interaction.description);
+            info(msg);
+        }
+    }
+
+    private void printFooter() {
+        println();
     }
 
     public static void registerTypeConverters() {

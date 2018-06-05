@@ -73,7 +73,7 @@ public class RequestSpec implements ScenarioPart {
     }
 
     @Override
-    public void validate() throws UnexpectedException {
+    public void validate(Scenario scenario) throws UnexpectedException {
         E.unexpectedIf(null == method, "method must be specified");
         E.unexpectedIf(null == url, "url must be specified");
     }
