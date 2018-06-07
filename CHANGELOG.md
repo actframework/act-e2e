@@ -1,6 +1,8 @@
 # act-e2e CHANGE LOG
 
 0.0.8
+* Update act to 1.8.8-RC9
+* Update act-sql-common to 1.4.1
 * Display error reason on e2e web UI #16
 * Add Empty verifier to check if a String response is empty #15
 * When run automated e2e test it show exit with an non-zero number #14
