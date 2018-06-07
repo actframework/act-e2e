@@ -73,6 +73,11 @@
 @if(!scenario.status.pass() && null != scenario.errorMessage) {
 <div class="@scenario.status">
   [@scenario.status] @scenario.errorMessage
+  @if(scenario.cause) {
+  <pre>
+@scenario.causeStackTrace()
+  </pre>
+  }
 </div>
 }
 
@@ -82,6 +87,11 @@
     [@interaction.status] @interaction.description.capFirst()
     @if(interaction.errorMessage) {
     <div class="error-message">- @interaction.errorMessage</div>
+    @if(interaction.cause) {
+<pre>
+@interaction.causeStackTrace()
+</pre>
+    }
     }
   </li>
 }

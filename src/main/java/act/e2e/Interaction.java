@@ -65,6 +65,9 @@ public class Interaction implements ScenarioPart {
         status = Status.of(pass);
         return pass;
     }
+    public String causeStackTrace() {
+        return null == cause ? null: E.stackTrace(cause);
+    }
 
     private void reset() {
         errorMessage = null;
@@ -78,7 +81,10 @@ public class Interaction implements ScenarioPart {
             return true;
         } catch (Exception e) {
             errorMessage = e.getMessage();
-            cause = e.getCause();
+            if (null == errorMessage) {
+                errorMessage = e.getClass().getName();
+            }
+            cause = causeOf(e);
             return false;
         }
     }
@@ -105,6 +111,9 @@ public class Interaction implements ScenarioPart {
             return true;
         } catch (Exception e) {
             errorMessage = e.getMessage();
+            if (null == errorMessage) {
+                errorMessage = e.getClass().getName();
+            }
             cause = causeOf(e);
             return false;
         }
@@ -124,6 +133,9 @@ public class Interaction implements ScenarioPart {
     }
 
     private void verifyHeaders(Response resp) {
+        if (null == response) {
+            return;
+        }
         for (Map.Entry<String, Object> entry : response.headers.entrySet()) {
             String headerName = entry.getKey();
             String headerVal = resp.header(headerName);

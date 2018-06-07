@@ -226,6 +226,7 @@ public class Scenario implements ScenarioPart {
     public List<Interaction> interactions = new ArrayList<>();
     public Status status = PENDING;
     public String errorMessage;
+    public Throwable cause;
 
     $.Var<Object> lastData = $.var();
     $.Var<Headers> lastHeaders = $.var();
@@ -290,6 +291,10 @@ public class Scenario implements ScenarioPart {
         return verify(RequestSpec.RS_CLEAR_FIXTURE, "clearing fixtures");
     }
 
+    public String causeStackTrace() {
+        return null == cause ? null: E.stackTrace(cause);
+    }
+
     void resolveRequest(RequestSpec req) {
         req.resolveParent(requestTemplateManager);
     }
@@ -344,7 +349,8 @@ public class Scenario implements ScenarioPart {
 
     private boolean runDependents() {
         for (String dependent : depends) {
-            if (!scenarioManager.get(dependent).run()) {
+            Scenario scenario = scenarioManager.get(dependent);
+            if (!scenario.run()) {
                 errorMessage = "dependency failure: " + dependent;
                 return false;
             }
@@ -356,6 +362,7 @@ public class Scenario implements ScenarioPart {
         for (Interaction interaction : interactions) {
             boolean pass = run(interaction);
             if (!pass) {
+                errorMessage = S.fmt("interaction[%s] failure", interaction.description);
                 return false;
             }
         }
@@ -385,11 +392,21 @@ public class Scenario implements ScenarioPart {
         return cookieStore;
     }
 
-    void verifyBody(String bodyString, ResponseSpec spec) throws IOException {
+    void verifyBody(String bodyString, ResponseSpec spec) {
+        lastData.set(bodyString);
+        if (null == spec) {
+            if (bodyString.startsWith("[")) {
+                JSONArray array = JSON.parseArray(bodyString);
+                lastData.set(array);
+            } else if (bodyString.startsWith("{")) {
+                JSONObject obj = JSON.parseObject(bodyString);
+                lastData.set(obj);
+            }
+            return;
+        }
         if (null != spec.text) {
-            lastData.set(bodyString);
             verifyValue(bodyString, spec.text);
-        } else if (null != spec.json && !spec.json.isEmpty()) {
+        } else if (null != spec && null != spec.json && !spec.json.isEmpty()) {
             if (bodyString.startsWith("[")) {
                 JSONArray array = JSON.parseArray(bodyString);
                 lastData.set(array);

@@ -1,5 +1,9 @@
 # act-e2e CHANGE LOG
 
+0.0.9
+* Improve error reporting
+* Fix NullPointerException when no response spec specified
+
 0.0.8
 * Update act to 1.8.8-RC9
 * Update act-sql-common to 1.4.1
