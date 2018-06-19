@@ -96,7 +96,9 @@ public class RequestTemplateManager extends YamlLoader {
             if (S.notBlank(sessionHeader)) {
                 spec.headers.put(sessionHeader, "last:");
             }
-            spec.json = $.bool(app.config().get("act.e2e.json"));
+            if ($.bool(app.config().get("act.e2e.json"))) {
+                spec.accept = "json";
+            }
         }
         store.put(key, spec);
 

@@ -25,7 +25,6 @@ import act.app.App;
 import act.app.DaoLocator;
 import act.conf.AppConfig;
 import act.db.Dao;
-import act.db.sql.tx.TxContext;
 import com.alibaba.fastjson.JSONObject;
 import org.osgl.$;
 import org.osgl.Lang;
@@ -44,7 +43,6 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import javax.persistence.RollbackException;
 
 public class YamlLoader {
 
@@ -175,17 +173,14 @@ public class YamlLoader {
                         })
                         .to(entity);
                 if (null != dao) {
-                    TxContext.enterTxScope(false);
+                    TxScope.enter();
                     try {
                         dao.save(entity);
-                        TxContext.exitTxScope();
-                    } catch (RollbackException e) {
-                        throw e;
-                    } catch (RuntimeException e) {
-                        TxContext.exitTxScope(e);
-                        throw e;
+                        TxScope.commit();
+                    } catch (Exception e) {
+                        TxScope.rollback(e);
                     } finally {
-                        TxContext.clear();
+                        TxScope.clear();
                     }
                 }
                 if (null != id) {
@@ -271,6 +266,11 @@ public class YamlLoader {
                     }
                     Object theId = dao.getId(reference);
                     objects.put(k, theId);
+                } else if (s.startsWith("password:")) {
+                    String password = s.substring(9);
+                    objects.put(k, Act.crypto().passwordHash(password));
+                } else if (k.equals("password")) {
+                    objects.put(k, Act.crypto().passwordHash(s));
                 }
             } else if (v instanceof List) {
                 List array = (List) v;

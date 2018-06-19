@@ -20,7 +20,7 @@ Scenario(Hello Service):
           - ends: Framework # value must ends with "Framework"
     - description: send request to hello servcie with parameter specified and require JSON response
       request:
-        json: true # specify accept type is application/json
+        accept: json # specify accept type is application/json
         method: GET
         url: /hello?who=Java
       response:
@@ -42,7 +42,7 @@ Scenario(Date Service):
           - before: 13/May/2018 # the returned date should be before date 13/May/2018
     - description: send request to the service and request response be JSON format
       request:
-        json: true
+        accept: json
         method: GET
         url: /date
       response:
@@ -56,7 +56,7 @@ Scenario(Int Array Service):
   interactions:
     - description: request [1, 2, 3] via GET
       request:
-        json: true
+        accept: json
         method: GET
         url: /array/int?start=1&end=4
       response:

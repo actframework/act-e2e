@@ -26,7 +26,7 @@ import org.osgl.http.H;
 
 import java.util.LinkedHashMap;
 
-public class ResponseSpec implements ScenarioPart {
+public class ResponseSpec implements InteractionPart {
 
     public H.Status status;
     public Object text;
@@ -35,8 +35,8 @@ public class ResponseSpec implements ScenarioPart {
     public LinkedHashMap<String, Object> headers = new LinkedHashMap<>();
 
     @Override
-    public void validate(Scenario scenario) throws UnexpectedException {
-        checkForEmpty();
+    public void validate(Interaction interaction) throws UnexpectedException {
+        checkForEmpty(interaction);
     }
 
     @Override
@@ -44,7 +44,7 @@ public class ResponseSpec implements ScenarioPart {
         return JSON.toJSONString(this);
     }
 
-    private void checkForEmpty() {
+    private void checkForEmpty(Interaction interaction) {
         if (null != status) {
             return;
         }
@@ -57,10 +57,10 @@ public class ResponseSpec implements ScenarioPart {
         if (!html.isEmpty()) {
             return;
         }
-        if (headers.isEmpty()) {
+        if (!headers.isEmpty()) {
             return;
         }
-        throw new UnexpectedException("No content defined in response spec");
+        throw new UnexpectedException("Empty response spec found in interaction[%s]", interaction);
     }
 
 }

@@ -20,7 +20,7 @@ package act.e2e;
  * #L%
  */
 
-import static act.e2e.E2E.Status.PENDING;
+import static act.e2e.E2EStatus.PENDING;
 import static act.e2e.util.ErrorMessage.error;
 import static act.e2e.util.ErrorMessage.errorIf;
 import static act.e2e.util.ErrorMessage.errorIfNot;
@@ -29,7 +29,6 @@ import static org.osgl.http.H.Header.Names.X_REQUESTED_WITH;
 
 import act.Act;
 import act.app.App;
-import act.e2e.E2E.Status;
 import act.e2e.req_modifier.RequestModifier;
 import act.e2e.util.CookieStore;
 import act.e2e.util.JSONTraverser;
@@ -56,6 +55,7 @@ import org.osgl.util.S;
 import java.io.IOException;
 import java.net.URL;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
 public class Scenario implements ScenarioPart {
@@ -72,8 +72,21 @@ public class Scenario implements ScenarioPart {
 
         RequestBuilder(RequestSpec requestSpec) {
             builder = new Request.Builder();
-            if ($.bool(requestSpec.json)) {
-                builder.addHeader(ACCEPT, H.Format.JSON.contentType());
+            String accept = requestSpec.accept;
+            if (null != accept) {
+                if (S.eq("json", accept, S.IGNORECASE)) {
+                    accept = H.Format.JSON.contentType();
+                } else {
+                    H.Format format = H.Format.of(accept);
+                    if (null == format) {
+                        format = H.Format.resolve(accept);
+                    }
+                    if (H.Format.UNKNOWN == format) {
+                        throw new UnexpectedException("Invalid accept in request spec: " + accept);
+                    }
+                    accept = format.contentType();
+                }
+                builder.addHeader(ACCEPT, accept);
             }
             if ($.bool(requestSpec.ajax)) {
                 builder.addHeader(X_REQUESTED_WITH, "XMLHttpRequest");
@@ -89,9 +102,12 @@ public class Scenario implements ScenarioPart {
                     if (S.blank(payload)) {
                         payload = headerName;
                     }
-                    headerVal = S.string(lastHeaders.get().get(payload));
+                    Headers headers = lastHeaders.get();
+                    headerVal = null == headers ? null : S.string(lastHeaders.get().get(payload));
                 }
-                builder.addHeader(headerName, headerVal);
+                if (null != headerVal) {
+                    builder.addHeader(headerName, headerVal);
+                }
             }
             String url = S.concat("http://localhost:", port, S.ensure(processStringSubstitution(requestSpec.url)).startWith("/"));
             boolean hasParams = !requestSpec.params.isEmpty();
@@ -120,8 +136,8 @@ public class Scenario implements ScenarioPart {
                 case PUT:
                 case PATCH:
                     RequestBody body = EMPTY_BODY;
-                    String jsonBody = verifyJsonBody(requestSpec.jsonBody);
-                    if (S.notBlank(requestSpec.jsonBody)) {
+                    String jsonBody = verifyJsonBody(requestSpec.json);
+                    if (S.notBlank(jsonBody)) {
                         body = RequestBody.create(MediaType.parse("application/json"), jsonBody);
                     } else if (hasParams) {
                         MultipartBody.Builder formBuilder = new MultipartBody.Builder();
@@ -189,23 +205,24 @@ public class Scenario implements ScenarioPart {
             return builder.build();
         }
 
-        private String verifyJsonBody(String jsonBody) {
-            final String origin = jsonBody;
-            if (S.blank(jsonBody)) {
+        private String verifyJsonBody(Object jsonBody) {
+            String s = null == jsonBody ? "" : (jsonBody instanceof String) ? (String) jsonBody : JSON.toJSONString(jsonBody);
+            if (S.blank(s)) {
                 return "";
             }
-            if (jsonBody.startsWith("resource:")) {
-                jsonBody = S.ensure(jsonBody.substring(9).trim()).startWith("/");
-                URL url = Act.getResource(jsonBody);
+            final String origin = s;
+            if (s.startsWith("resource:")) {
+                s = S.ensure(s.substring(9).trim()).startWith("/");
+                URL url = Act.getResource(s);
                 E.unexpectedIf(null == url, "Cannot find JSON body: " + origin);
-                jsonBody = IO.read(url).toString();
+                s = IO.read(url).toString();
             }
             try {
-                JSON.parse(jsonBody);
+                JSON.parse(s);
             } catch (Exception e) {
                 E.unexpected(e, "Invalid JSON body: " + origin);
             }
-            return jsonBody;
+            return s;
         }
 
     }
@@ -224,7 +241,7 @@ public class Scenario implements ScenarioPart {
     public List<String> fixtures = new ArrayList<>();
     public List<String> depends = new ArrayList<>();
     public List<Interaction> interactions = new ArrayList<>();
-    public Status status = PENDING;
+    public E2EStatus status = PENDING;
     public String errorMessage;
     public Throwable cause;
 
@@ -243,6 +260,11 @@ public class Scenario implements ScenarioPart {
         }
     }
 
+    @Override
+    public String toString() {
+        return title();
+    }
+
     public String title() {
         return S.blank(description) ? name : description;
     }
@@ -255,7 +277,7 @@ public class Scenario implements ScenarioPart {
         return cache.get(name);
     }
 
-    public Status statusOf(Interaction interaction) {
+    public E2EStatus statusOf(Interaction interaction) {
         return interaction.status;
     }
 
@@ -280,11 +302,13 @@ public class Scenario implements ScenarioPart {
         validate(this);
         prepareHttp();
         boolean pass = reset() && run();
-        this.status = Status.of(pass);
+        this.status = E2EStatus.of(pass);
     }
 
     public void clearSession() {
-        cookieStore().clear();
+        if (depends.isEmpty()) {
+            cookieStore().clear();
+        }
     }
 
     public boolean clearFixtures() {
@@ -301,7 +325,9 @@ public class Scenario implements ScenarioPart {
 
     Response sendRequest(RequestSpec req) throws IOException {
         Request httpRequest = new RequestBuilder(req).build();
-        return http.newCall(httpRequest).execute();
+        Response resp = http.newCall(httpRequest).execute();
+        lastHeaders.set(resp.headers());
+        return resp;
     }
 
     private boolean createFixtures() {
@@ -329,15 +355,22 @@ public class Scenario implements ScenarioPart {
     }
 
     private void prepareHttp() {
+        long timeout = "e2e".equalsIgnoreCase(Act.profile()) ? 10 : 60 * 60;
         http = new OkHttpClient.Builder()
                 .cookieJar(cookieStore())
+                .connectTimeout(timeout, TimeUnit.SECONDS)
+                .readTimeout(timeout, TimeUnit.SECONDS)
+                .writeTimeout(timeout, TimeUnit.SECONDS)
                 .build();
     }
 
     private boolean reset() {
         errorMessage = null;
         clearSession();
-        return clearFixtures() && createFixtures();
+        if (depends.isEmpty()) {
+            return clearFixtures() && createFixtures();
+        }
+        return true;
     }
 
     private boolean run() {
@@ -354,8 +387,16 @@ public class Scenario implements ScenarioPart {
                 errorMessage = "dependency failure: " + dependent;
                 return false;
             }
+            inheritFrom(scenario);
         }
         return true;
+    }
+
+    private void inheritFrom(Scenario dependent) {
+        lastHeaders.set(dependent.lastHeaders.get());
+        lastData.set(dependent.lastData.get());
+        cache.putAll(dependent.cache);
+        http = dependent.http;
     }
 
     private boolean runInteractions() {
@@ -374,6 +415,7 @@ public class Scenario implements ScenarioPart {
         if (!okay) {
             return false;
         }
+
         for (Map.Entry<String, String> entry : interaction.cache.entrySet()) {
             String ref = entry.getValue();
             Object value = getLastVal(ref);
@@ -406,7 +448,7 @@ public class Scenario implements ScenarioPart {
         }
         if (null != spec.text) {
             verifyValue(bodyString, spec.text);
-        } else if (null != spec && null != spec.json && !spec.json.isEmpty()) {
+        } else if (null != spec.json && !spec.json.isEmpty()) {
             if (bodyString.startsWith("[")) {
                 JSONArray array = JSON.parseArray(bodyString);
                 lastData.set(array);

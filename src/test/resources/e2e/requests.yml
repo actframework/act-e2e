@@ -4,5 +4,5 @@ RequestSpec(global):
     Authorization: last|
 
 RequestSpec(ajax):
-  json: true
+  accept: json
   ajax: true

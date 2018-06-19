@@ -39,9 +39,11 @@ public class CookieStore extends SingletonBase implements CookieJar {
 
     @Override
     public synchronized void saveFromResponse(HttpUrl url, List<Cookie> cookies) {
-        Map<String, Cookie> cookieMap = store.get(key(url));
+        String key = key(url);
+        Map<String, Cookie> cookieMap = store.get(key);
         if (null == cookieMap) {
             cookieMap = new HashMap<>();
+            store.put(key, cookieMap);
         }
         for (Cookie cookie : cookies) {
             cookieMap.put(cookie.name(), cookie);

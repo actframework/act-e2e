@@ -23,8 +23,12 @@ package act.e2e.macro;
 import act.e2e.Scenario;
 import act.e2e.util.NamedLogic;
 import org.osgl.util.C;
+import org.osgl.util.E;
+import org.osgl.util.IO;
+import org.osgl.util.S;
 import org.osgl.util.converter.TypeConverterRegistry;
 
+import java.io.File;
 import java.util.List;
 
 public abstract class Macro<T extends Macro> extends NamedLogic<T> {
@@ -53,6 +57,21 @@ public abstract class Macro<T extends Macro> extends NamedLogic<T> {
         @Override
         public void run(Scenario scenario) {
             scenario.clearSession();
+        }
+    }
+
+    /**
+     * Read file content into a string and cache the string
+     * with the underscore style of the file name.
+     */
+    public static class ReadContent extends Macro<ReadContent> {
+        @Override
+        public void run(Scenario scenario) {
+            String fileName = (String) initVal;
+            File file = new File(fileName);
+            E.unexpectedIf(!file.exists() || !file.canRead(), "File not exists or not readable: " + fileName);
+            String content = IO.read(file).toString();
+            scenario.cache(S.underscore(fileName), content);
         }
     }
 

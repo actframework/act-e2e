@@ -32,19 +32,19 @@ import org.osgl.util.E;
 
 import java.util.*;
 
-public class RequestSpec implements ScenarioPart {
+public class RequestSpec implements InteractionPart {
 
     public static final RequestSpec RS_CLEAR_FIXTURE = clearFixture();
 
     public String parent;
     public H.Method method;
     public String url;
-    public Boolean json;
+    public String accept;
     public Boolean ajax;
     public List<RequestModifier> modifiers = new ArrayList<>();
     public Map<String, Object> params = new LinkedHashMap<>();
     public Map<String, Object> headers = new LinkedHashMap<>();
-    public String jsonBody;
+    public Object json;
 
     private boolean resolved;
 
@@ -73,9 +73,9 @@ public class RequestSpec implements ScenarioPart {
     }
 
     @Override
-    public void validate(Scenario scenario) throws UnexpectedException {
-        E.unexpectedIf(null == method, "method must be specified");
-        E.unexpectedIf(null == url, "url must be specified");
+    public void validate(Interaction interaction) throws UnexpectedException {
+        E.unexpectedIf(null == method, "method not specified in request spec of interaction[%s]", interaction);
+        E.unexpectedIf(null == url, "url not specified in the request spec of interaction[%s]", interaction);
     }
 
     public void markAsResolved() {
@@ -87,11 +87,17 @@ public class RequestSpec implements ScenarioPart {
     }
 
     private void extendsParent(RequestSpec parent) {
-        if (null == json) {
-            json = parent.json;
+        if (null == accept) {
+            accept = parent.accept;
         }
         if (null == ajax) {
             ajax = parent.ajax;
+        }
+        if (null == url) {
+            url = parent.url;
+        }
+        if (null == method) {
+            method = parent.method;
         }
         for (Map.Entry<String, Object> entry : parent.params.entrySet()) {
             String key = entry.getKey();
@@ -119,7 +125,7 @@ public class RequestSpec implements ScenarioPart {
         rs.method = H.Method.POST;
         rs.headers.put(CONTENT_TYPE, H.Format.JSON.contentType());
         rs.url = "/~/e2e/fixtures";
-        rs.jsonBody = JSON.toJSONString(C.Map("fixtures", fixtures));
+        rs.json = JSON.toJSONString(C.Map("fixtures", fixtures));
         return rs;
     }
 }

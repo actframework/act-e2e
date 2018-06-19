@@ -1,4 +1,4 @@
-package act.e2e.util;
+package act.e2e;
 
 /*-
  * #%L
@@ -20,26 +20,18 @@ package act.e2e.util;
  * #L%
  */
 
-import act.e2e.RequestSpec;
-import org.junit.Test;
-import osgl.ut.TestBase;
+public enum E2EStatus {
+    PENDING, PASS, FAIL;
 
-public class RequestTemplateManagerTest extends TestBase {
-
-    @Test
-    public void test() {
-        RequestTemplateManager manager = new RequestTemplateManager();
-        manager.load();
-        RequestSpec spec = manager.getTemplate("global");
-        notNull(spec);
-        eq("last|", spec.headers.get("Authorization"));
-        isNull(spec.ajax);
-        isNull(spec.json);
-        spec = manager.getTemplate("ajax");
-        notNull(spec);
-        eq("last|", spec.headers.get("Authorization"));
-        yes(spec.ajax);
-        eq("json", spec.accept);
+    public static E2EStatus of(boolean result) {
+        return result ? PASS : FAIL;
     }
 
+    public boolean finished() {
+        return PENDING != this;
+    }
+
+    public boolean pass() {
+        return PASS == this;
+    }
 }

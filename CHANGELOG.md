@@ -1,8 +1,18 @@
 # act-e2e CHANGE LOG
 
-0.0.9
-* Improve error reporting
-* Fix NullPointerException when no response spec specified
+1.0.0 - 19/Jun/2018
+* update act to 1.8.8-RC10
+* It shall always run dependent scenario first #27
+* Add `ReadContent` macro #26
+* Inherit state from dependent scenario #25
+* Increase HTTP timeout when running in dev mode #24
+* `CookieStore` is not working as expected #23
+* `RequestSpec` - rename `jsonBody` to `json` #22
+* RequestSpec - add `accept` property #21
+* Allow `RequestSpec` extend URL and method from parent spec #20
+* Improve error reporting on invalid scenario spec #19
+* NPE encountered when ResponseSpec is not specified #18
+* act-e2e introduces dependency to act-sql-common #17
 
 0.0.8
 * Update act to 1.8.8-RC9

@@ -20,26 +20,30 @@ package act.e2e.util;
  * #L%
  */
 
-import act.e2e.RequestSpec;
-import org.junit.Test;
-import osgl.ut.TestBase;
+import act.Act;
 
-public class RequestTemplateManagerTest extends TestBase {
+public class TxScope {
 
-    @Test
-    public void test() {
-        RequestTemplateManager manager = new RequestTemplateManager();
-        manager.load();
-        RequestSpec spec = manager.getTemplate("global");
-        notNull(spec);
-        eq("last|", spec.headers.get("Authorization"));
-        isNull(spec.ajax);
-        isNull(spec.json);
-        spec = manager.getTemplate("ajax");
-        notNull(spec);
-        eq("last|", spec.headers.get("Authorization"));
-        yes(spec.ajax);
-        eq("json", spec.accept);
+    private static TxScopeProvider provider;
+    static {
+        try {
+            provider = Act.getInstance("act.e2e.util.SqlTxScope");
+        } catch (Throwable e) {
+            provider = new TxScopeProvider.DumbProvider();
+        }
+    }
+
+    public static void enter() {
+        provider.enter();
+    }
+    public static void rollback(Exception e) {
+        provider.rollback(e);
+    }
+    public static void commit() {
+        provider.commit();
+    }
+    public static void clear() {
+        provider.clear();
     }
 
 }

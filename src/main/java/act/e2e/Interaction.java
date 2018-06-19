@@ -20,10 +20,9 @@ package act.e2e;
  * #L%
  */
 
-import static act.e2e.E2E.Status.PENDING;
+import static act.e2e.E2EStatus.PENDING;
 import static act.e2e.util.ErrorMessage.error;
 
-import act.e2e.E2E.Status;
 import act.e2e.macro.Macro;
 import okhttp3.Response;
 import org.osgl.exception.UnexpectedException;
@@ -45,24 +44,29 @@ public class Interaction implements ScenarioPart {
     public Map<String, String> cache = new HashMap<>();
     public String errorMessage;
     public Throwable cause;
-    public Status status = PENDING;
+    public E2EStatus status = PENDING;
 
     @Override
     public void validate(Scenario scenario) throws UnexpectedException {
-        E.unexpectedIf(S.blank(description), "description is blank");
-        E.unexpectedIf(null == request, "request spec not specified");
+        E.unexpectedIf(S.blank(description), "no description in the interaction of [%s]", scenario);
+        E.unexpectedIf(null == request, "request spec not specified in interaction[%s]", this);
         //E.unexpectedIf(null == response, "response spec not specified");
         scenario.resolveRequest(request);
-        request.validate(scenario);
+        request.validate(this);
         if (null != response) {
-            response.validate(scenario);
+            response.validate(this);
         }
         reset();
     }
 
+    @Override
+    public String toString() {
+        return description;
+    }
+
     public boolean run() {
         boolean pass = run(preActions) && verify() && run(postActions);
-        status = Status.of(pass);
+        status = E2EStatus.of(pass);
         return pass;
     }
     public String causeStackTrace() {
