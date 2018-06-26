@@ -1,5 +1,8 @@
 # act-e2e CHANGE LOG
 
+1.0.1
+* Disable CAPTCHA protection when running app in an E2E session #29
+
 1.0.0 - 19/Jun/2018
 * update act to 1.8.8-RC10
 * It shall always run dependent scenario first #27

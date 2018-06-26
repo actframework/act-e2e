@@ -134,6 +134,7 @@ public class E2E extends LogSupport {
     public List<Scenario> run(App app, boolean shutdownApp) {
         info("Start running E2E test scenarios\n");
         int exitCode = 0;
+        app.captchaManager().disable();
         try {
             registerTypeConverters();
             RequestTemplateManager requestTemplateManager = new RequestTemplateManager();
@@ -162,12 +163,13 @@ public class E2E extends LogSupport {
             }
             return list;
         } catch (Exception e) {
-            System.out.println("Error captured, setting exit code to -1");
             exitCode = -1;
             throw e;
         } finally {
             if (shutdownApp) {
                 app.shutdown(exitCode);
+            } else {
+                app.captchaManager().enable();
             }
         }
     }
