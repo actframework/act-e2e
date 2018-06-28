@@ -228,19 +228,15 @@ public class Scenario implements ScenarioPart {
     }
 
     private int port = 5460;
-
     private OkHttpClient http;
-
     private CookieStore cookieStore;
-
     private App app;
-
-
     public String name;
     public String description;
     public List<String> fixtures = new ArrayList<>();
     public List<String> depends = new ArrayList<>();
     public List<Interaction> interactions = new ArrayList<>();
+    public Map<String, String> constants = new HashMap<>();
     public E2EStatus status = PENDING;
     public String errorMessage;
     public Throwable cause;
@@ -291,6 +287,14 @@ public class Scenario implements ScenarioPart {
         errorIf(S.blank(name), "Scenario name not defined");
         for (Interaction interaction : interactions) {
             interaction.validate(scenario);
+        }
+        calibrateConstantNames();
+    }
+
+    private void calibrateConstantNames() {
+        Map<String, String> copy = new HashMap<>(constants);
+        for (Map.Entry<String, String> entry : copy.entrySet()) {
+            constants.put(S.underscore(entry.getKey()), entry.getValue());
         }
     }
 
@@ -691,8 +695,24 @@ public class Scenario implements ScenarioPart {
     }
 
     private Object getVal(String key, String ref) {
-        Object stuff = "last".equals(key) ? lastData.get() : cache.get(key);
+        Object stuff = getVal(key);
         return S.blank(ref) ? stuff : JSONTraverser.traverse(stuff, ref);
+    }
+
+    private Object getVal(String key) {
+        if ("last".equals(key)) {
+            return lastData.get();
+        }
+        Object o = cache.get(key);
+        if (null != o) {
+            return o;
+        }
+        key = S.underscore(key);
+        o = constants.get(key);
+        if (null != o) {
+            return o;
+        }
+        return E2E.constant(key);
     }
 
     private Object getLastVal(String ref) {

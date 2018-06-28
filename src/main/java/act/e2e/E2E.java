@@ -38,17 +38,38 @@ import org.osgl.logging.Logger;
 import org.osgl.mvc.annotation.DeleteAction;
 import org.osgl.mvc.annotation.PostAction;
 import org.osgl.util.C;
+import org.osgl.util.IO;
 import org.osgl.util.S;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.net.URL;
+import java.util.*;
 import javax.inject.Inject;
 
 @Env.RequireMode(Act.Mode.DEV)
 public class E2E extends LogSupport {
 
     static final Logger LOGGER = LogManager.get(E2E.class);
+
+    public static class ConstantPool {
+        private static Map<String, String> pool = new HashMap<>();
+        static {
+            load();
+        }
+        private static void load() {
+            URL url = Act.getResource("e2e/constants.properties");
+            if (null != url) {
+                Properties p = IO.loadProperties(url);
+                for (Map.Entry entry : p.entrySet()) {
+                    String key = S.string(entry.getKey());
+                    key = S.underscore(key);
+                    pool.put(key, S.string(entry.getValue()));
+                }
+            }
+        }
+        public static String get(String name) {
+            return pool.get(S.underscore(name));
+        }
+    }
 
     @Inject
     private DbServiceManager dbServiceManager;
@@ -134,8 +155,8 @@ public class E2E extends LogSupport {
     public List<Scenario> run(App app, boolean shutdownApp) {
         info("Start running E2E test scenarios\n");
         int exitCode = 0;
-        app.captchaManager().disable();
         try {
+            app.captchaManager().disable();
             registerTypeConverters();
             RequestTemplateManager requestTemplateManager = new RequestTemplateManager();
             requestTemplateManager.load();
@@ -195,6 +216,10 @@ public class E2E extends LogSupport {
 
     private void printFooter() {
         println();
+    }
+
+    public static String constant(String name) {
+        return ConstantPool.get(name);
     }
 
     public static void registerTypeConverters() {

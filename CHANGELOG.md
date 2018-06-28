@@ -1,6 +1,7 @@
 # act-e2e CHANGE LOG
 
 1.0.1
+* Support defining constants globally and in the Scenario yaml file #28
 * Disable CAPTCHA protection when running app in an E2E session #29
 
 1.0.0 - 19/Jun/2018

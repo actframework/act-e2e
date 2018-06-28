@@ -25,6 +25,7 @@ import act.app.App;
 import act.app.DaoLocator;
 import act.conf.AppConfig;
 import act.db.Dao;
+import act.e2e.E2E;
 import com.alibaba.fastjson.JSONObject;
 import org.osgl.$;
 import org.osgl.Lang;
@@ -128,6 +129,7 @@ public class YamlLoader {
     public Map<String, Object> parse(String yaml, DaoLocator daoLocator) {
         Object o = new Yaml().load(yaml);
         Map<Object, Map<?, ?>> objects = $.cast(o);
+        resolveConstants(objects);
         Map<String, Map<String, Object>> mapCache = C.newMap();
         Map<String, Object> entityCache = C.newMap();
         Map<String, Class> classCache = C.newMap();
@@ -189,6 +191,25 @@ public class YamlLoader {
             }
         }
         return entityCache;
+    }
+
+    private void resolveConstants(Map<?, ?> entityValue) {
+        for (Map.Entry entry : entityValue.entrySet()) {
+            Object v = entry.getValue();
+            if (v instanceof String) {
+                String s = ((String) v).trim();
+                if (s.startsWith("${") && s.endsWith("}")) {
+                    s = s.substring(2);
+                    s = s.substring(0, s.length() - 1);
+                    String constant = E2E.constant(s);
+                    if (null != constant) {
+                        entry.setValue(constant);
+                    }
+                }
+            } else if (v instanceof Map) {
+                resolveConstants((Map) v);
+            }
+        }
     }
 
     protected String getResourceAsString(String name) {
