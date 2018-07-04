@@ -29,6 +29,7 @@ import act.e2e.macro.Macro;
 import act.e2e.req_modifier.RequestModifier;
 import act.e2e.util.*;
 import act.e2e.verifier.Verifier;
+import act.event.EventBus;
 import act.job.OnAppStart;
 import act.sys.Env;
 import act.util.LogSupport;
@@ -155,7 +156,9 @@ public class E2E extends LogSupport {
     public List<Scenario> run(App app, boolean shutdownApp) {
         info("Start running E2E test scenarios\n");
         int exitCode = 0;
+        EventBus eventBus = app.eventBus();
         try {
+            eventBus.trigger(E2EStart.INSTANCE);
             app.captchaManager().disable();
             registerTypeConverters();
             RequestTemplateManager requestTemplateManager = new RequestTemplateManager();
@@ -192,6 +195,7 @@ public class E2E extends LogSupport {
             } else {
                 app.captchaManager().enable();
             }
+            eventBus.trigger(E2EStop.INSTANCE);
         }
     }
 

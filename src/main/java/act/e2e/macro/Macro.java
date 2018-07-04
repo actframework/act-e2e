@@ -22,6 +22,7 @@ package act.e2e.macro;
 
 import act.e2e.Scenario;
 import act.e2e.util.NamedLogic;
+import org.osgl.$;
 import org.osgl.util.C;
 import org.osgl.util.E;
 import org.osgl.util.IO;
@@ -75,6 +76,26 @@ public abstract class Macro<T extends Macro> extends NamedLogic<T> {
         }
     }
 
+    public static class Pause extends Macro<Pause> {
+
+        long time;
+
+        @Override
+        protected void init(Object param) {
+            time = $.convert(param).toLong();
+            E.illegalArgumentIf(time <=0);
+        }
+
+        @Override
+        public void run(Scenario scenario) {
+            try {
+                Thread.sleep(time);
+            } catch (InterruptedException e) {
+                throw E.unexpected(e);
+            }
+        }
+    }
+
     public static void registerTypeConverters() {
         TypeConverterRegistry.INSTANCE.register(new FromLinkedHashMap(Macro.class));
         TypeConverterRegistry.INSTANCE.register(new FromString(Macro.class));
@@ -83,5 +104,7 @@ public abstract class Macro<T extends Macro> extends NamedLogic<T> {
     public static void registerActions() {
         new ClearFixture().register();
         new ClearSession().register();
+        new ReadContent().register();
+        new Pause().register();
     }
 }

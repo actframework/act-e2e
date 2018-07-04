@@ -1,8 +1,10 @@
 # act-e2e CHANGE LOG
 
 1.0.1
-* Support defining constants globally and in the Scenario yaml file #28
+* Trigger event when E2E start and stop #31
+* Add pause macro #30
 * Disable CAPTCHA protection when running app in an E2E session #29
+* Support defining constants globally and in the Scenario yaml file #28
 
 1.0.0 - 19/Jun/2018
 * update act to 1.8.8-RC10
