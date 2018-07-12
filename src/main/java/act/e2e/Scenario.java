@@ -407,7 +407,7 @@ public class Scenario implements ScenarioPart {
         for (Interaction interaction : interactions) {
             boolean pass = run(interaction);
             if (!pass) {
-                errorMessage = S.fmt("interaction[%s] failure", interaction.description);
+                //errorMessage = S.fmt("interaction[%s] failure", interaction.description);
                 return false;
             }
         }
@@ -568,23 +568,26 @@ public class Scenario implements ScenarioPart {
                     }
                     verifyValue(value, test);
                 }
-            } else if (test instanceof String) {
+            } else {
+                // try convert the test into String
+                String testString = $.convert(test).toString();
+                if (matches(testString, value)) {
+                    return;
+                }
                 if (null != value && ("*".equals(test) || "...".equals(test) || "<any>".equals(test))) {
                     return;
                 }
                 try {
-                    Pattern p = Pattern.compile((String) test);
-                    errorIfNot(p.matcher((String) value).matches(), "Cannot verify value[%s] with test [%s]", value, test);
+                    Pattern p = Pattern.compile(testString);
+                    errorIfNot(p.matcher(S.string(value)).matches(), "Cannot verify value[%s] with test [%s]", value, test);
                     return;
                 } catch (Exception e) {
                     // ignore
                 }
-                Verifier v = tryLoadVerifier((String) test);
+                Verifier v = tryLoadVerifier(testString);
                 if (null != v && v.verify(value)) {
                     return;
                 }
-                error("Cannot verify value[%s] with test [%s]", value, test);
-            } else {
                 error("Cannot verify value[%s] with test [%s]", value, test);
             }
         }

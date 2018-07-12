@@ -1,6 +1,8 @@
 # act-e2e CHANGE LOG
 
 1.0.1
+* Suppress redundant error message at session level #33
+* Cannot verify an integer value #32
 * Trigger event when E2E start and stop #31
 * Add pause macro #30
 * Disable CAPTCHA protection when running app in an E2E session #29
