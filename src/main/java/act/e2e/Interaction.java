@@ -28,6 +28,7 @@ import okhttp3.Response;
 import org.osgl.exception.UnexpectedException;
 import org.osgl.http.H;
 import org.osgl.util.E;
+import org.osgl.util.IO;
 import org.osgl.util.S;
 
 import java.util.ArrayList;
@@ -79,8 +80,9 @@ public class Interaction implements ScenarioPart {
     }
 
     private boolean verify() {
+        Response resp = null;
         try {
-            Response resp = Scenario.get().sendRequest(request);
+            resp = Scenario.get().sendRequest(request);
             doVerify(resp);
             return true;
         } catch (Exception e) {
@@ -90,6 +92,8 @@ public class Interaction implements ScenarioPart {
             }
             cause = causeOf(e);
             return false;
+        } finally {
+            IO.close(resp);
         }
     }
 

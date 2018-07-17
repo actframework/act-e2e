@@ -344,8 +344,9 @@ public class Scenario implements ScenarioPart {
 
     private boolean verify(RequestSpec req, String operation) {
         boolean pass = true;
+        Response resp = null;
         try {
-            Response resp = sendRequest(req);
+            resp = sendRequest(req);
             if (!resp.isSuccessful()) {
                 pass = false;
                 errorMessage = "Fixtures loading failure";
@@ -355,6 +356,8 @@ public class Scenario implements ScenarioPart {
             errorMessage = "Error " + operation;
             LOGGER.error(e, errorMessage);
             return false;
+        } finally {
+            IO.close(resp);
         }
     }
 
@@ -558,7 +561,7 @@ public class Scenario implements ScenarioPart {
                 }
             } else if (value instanceof Elements) {
                 if (test instanceof Map) {
-                    verifyList((Elements)value, (Map)test);
+                    verifyList((Elements) value, (Map) test);
                 } else {
                     Elements elements = (Elements) value;
                     if (elements.isEmpty()) {
@@ -567,6 +570,23 @@ public class Scenario implements ScenarioPart {
                         value = elements.first();
                     }
                     verifyValue(value, test);
+                }
+            } else if (value instanceof Number) {
+                Number found = (Number) value;
+                Number expected = null;
+                if (test instanceof Number) {
+                    expected = (Number) test;
+                } else {
+                    String s = S.string(test);
+                    if (S.isNumeric(s)) {
+                        expected = $.convert(s).to(Double.class);
+                    } else {
+                        error("Cannot verify value[%s] against test [%s]", value, test);
+                    }
+                }
+                double delta = Math.abs(expected.doubleValue() - found.doubleValue());
+                if ((delta / found.doubleValue()) > 0.001) {
+                    error("Cannot verify value[%s] against test [%s]", value, test);
                 }
             } else {
                 // try convert the test into String

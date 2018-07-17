@@ -1,6 +1,8 @@
 # act-e2e CHANGE LOG
 
 1.0.1
+* Cannot verify value[46146379133] with test [46146379133] #35
+* Response body not closed #34
 * Suppress redundant error message at session level #33
 * Cannot verify an integer value #32
 * Trigger event when E2E start and stop #31
