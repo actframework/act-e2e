@@ -39,7 +39,7 @@ public abstract class DateTimeVerifier extends Verifier<DateTimeVerifier> {
     protected long timestamp;
 
     @Override
-    protected void init(Object param) {
+    public void init(Object param) {
         super.init(param);
         timestamp = convert($.requireNotNull(param));
     }

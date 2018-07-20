@@ -21,14 +21,13 @@ package act.e2e;
  */
 
 import static act.e2e.E2EStatus.PENDING;
-import static act.e2e.util.ErrorMessage.error;
-import static act.e2e.util.ErrorMessage.errorIf;
-import static act.e2e.util.ErrorMessage.errorIfNot;
+import static act.e2e.util.ErrorMessage.*;
 import static org.osgl.http.H.Header.Names.ACCEPT;
 import static org.osgl.http.H.Header.Names.X_REQUESTED_WITH;
 
 import act.Act;
 import act.app.App;
+import act.e2e.func.Func;
 import act.e2e.req_modifier.RequestModifier;
 import act.e2e.util.CookieStore;
 import act.e2e.util.JSONTraverser;
@@ -47,14 +46,14 @@ import org.osgl.$;
 import org.osgl.exception.UnexpectedException;
 import org.osgl.http.H;
 import org.osgl.logging.Logger;
-import org.osgl.util.Codec;
-import org.osgl.util.E;
-import org.osgl.util.IO;
-import org.osgl.util.S;
+import org.osgl.util.*;
 
 import java.io.IOException;
 import java.net.URL;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
@@ -166,6 +165,8 @@ public class Scenario implements ScenarioPart {
                         sVal = processStringSubstitution(sVal);
                         entry.setValue(sVal);
                     }
+                } else if (val instanceof Map) {
+                    processParamSubstitution((Map) val);
                 }
             }
         }
@@ -206,6 +207,9 @@ public class Scenario implements ScenarioPart {
         }
 
         private String verifyJsonBody(Object jsonBody) {
+            if (jsonBody instanceof Map) {
+                processParamSubstitution((Map) jsonBody);
+            }
             String s = null == jsonBody ? "" : (jsonBody instanceof String) ? (String) jsonBody : JSON.toJSONString(jsonBody);
             if (S.blank(s)) {
                 return "";
@@ -227,6 +231,7 @@ public class Scenario implements ScenarioPart {
 
     }
 
+
     private int port = 5460;
     private OkHttpClient http;
     private CookieStore cookieStore;
@@ -236,7 +241,7 @@ public class Scenario implements ScenarioPart {
     public List<String> fixtures = new ArrayList<>();
     public List<String> depends = new ArrayList<>();
     public List<Interaction> interactions = new ArrayList<>();
-    public Map<String, String> constants = new HashMap<>();
+    public Map<String, Object> constants = new HashMap<>();
     public E2EStatus status = PENDING;
     public String errorMessage;
     public Throwable cause;
@@ -288,14 +293,50 @@ public class Scenario implements ScenarioPart {
         for (Interaction interaction : interactions) {
             interaction.validate(scenario);
         }
-        calibrateConstantNames();
+        processConstants();
     }
 
-    private void calibrateConstantNames() {
-        Map<String, String> copy = new HashMap<>(constants);
-        for (Map.Entry<String, String> entry : copy.entrySet()) {
-            constants.put(S.underscore(entry.getKey()), entry.getValue());
+    private void processConstants() {
+        Map<String, Object> copy = new HashMap<>(constants);
+        for (Map.Entry<String, Object> entry : copy.entrySet()) {
+            Object value = entry.getValue();
+            String sVal = S.string(value);
+            if (sVal.startsWith("${")) {
+                String expr = S.strip(sVal).of("${", "}");
+                value = eval(expr);
+            }
+            constants.put(S.underscore(entry.getKey()), value);
         }
+    }
+
+    private Object eval(String expr) {
+        if (expr.startsWith("func:")) {
+            return evalFunc(expr.substring(5));
+        }
+        String key = S.underscore(expr);
+        Object o = constants.get(key);
+        return null == o ? E2E.constant(key) : o;
+    }
+
+    private Object evalFunc(String funcExpr) {
+        String funcName = funcExpr;
+        List<String> vals = C.list();
+        if (funcExpr.contains("(")) {
+            funcName = S.cut(funcExpr).beforeFirst("(");
+            String paramStr = S.cut(funcExpr).afterFirst("(");
+            paramStr = S.cut(paramStr).beforeLast(")");
+            vals = S.fastSplit(paramStr, ",");
+        }
+        Func func = $.convert(funcName).to(Func.class);
+        switch (vals.size()) {
+            case 0:
+                break;
+            case 1:
+                func.init(vals.get(0));
+            default:
+                func.init(vals);
+        }
+        return func.apply();
     }
 
     public void start(ScenarioManager scenarioManager, RequestTemplateManager requestTemplateManager) {

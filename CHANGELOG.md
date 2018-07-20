@@ -1,6 +1,8 @@
 # act-e2e CHANGE LOG
 
-1.0.1
+1.1.0
+* `scenario.yml`: json part shall go through request param substitution also #39
+* `scenario.yml` file: support declare and assign variable for a scenario #37
 * Cannot verify value[46146379133] with test [46146379133] #35
 * Response body not closed #34
 * Suppress redundant error message at session level #33

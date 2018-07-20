@@ -21,6 +21,7 @@ package act.e2e.util;
  */
 
 import act.plugin.Plugin;
+import act.util.LogSupport;
 import org.osgl.$;
 import org.osgl.util.C;
 import org.osgl.util.E;
@@ -42,7 +43,7 @@ import java.util.Map;
  * * Assert - used to verify the data
  * * Modifier - used to modify request
  */
-public abstract class NamedLogic<T extends NamedLogic> implements Plugin {
+public abstract class NamedLogic<T extends NamedLogic> extends LogSupport implements Plugin {
 
     private static Map<Class<? extends NamedLogic>, Map<Keyword, NamedLogic>> registry = new HashMap<>();
 
@@ -95,7 +96,7 @@ public abstract class NamedLogic<T extends NamedLogic> implements Plugin {
      * @param param
      *      the initialization string
      */
-    protected void init(Object param) {
+    public void init(Object param) {
         this.initVal = param;
     }
 

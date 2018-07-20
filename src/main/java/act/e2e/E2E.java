@@ -25,6 +25,7 @@ import act.app.App;
 import act.app.DbServiceManager;
 import act.db.Dao;
 import act.db.DbService;
+import act.e2e.func.Func;
 import act.e2e.macro.Macro;
 import act.e2e.req_modifier.RequestModifier;
 import act.e2e.util.*;
@@ -230,6 +231,7 @@ public class E2E extends LogSupport {
         Verifier.registerTypeConverters();
         Macro.registerTypeConverters();
         RequestModifier.registerTypeConverters();
+        Func.registerTypeConverters();
     }
 
     private static void addToList(Scenario scenario, List<Scenario> list, ScenarioManager manager) {

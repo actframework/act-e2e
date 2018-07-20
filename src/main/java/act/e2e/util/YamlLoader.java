@@ -273,10 +273,7 @@ public class YamlLoader {
                 if (s.startsWith("$")) {
                     String id = s.substring(1);
                     Map<String, Object> embedded = mapCache.get(id);
-                    if (null == embedded) {
-                        throw E.unexpected("Cannot find embedded object by ID: %s", id);
-                    }
-                    objects.put(k, embedded);
+                    objects.put(k, null != embedded ? embedded : s);
                 } else if (s.startsWith("ref:")) {
                     String id = s.substring(4);
                     Object reference = entityCache.get(id);

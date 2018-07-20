@@ -81,7 +81,7 @@ public abstract class Macro<T extends Macro> extends NamedLogic<T> {
         long time;
 
         @Override
-        protected void init(Object param) {
+        public void init(Object param) {
             time = $.convert(param).toLong();
             E.illegalArgumentIf(time <=0);
         }
