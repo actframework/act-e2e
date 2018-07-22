@@ -53,11 +53,15 @@ public abstract class NamedLogic<T extends NamedLogic> extends LogSupport implem
 
     @Override
     public void register() {
+        register(false);
+    }
+
+    protected void register(boolean force) {
         Keyword keyword = keyword();
-        register(keyword);
+        register(keyword, force);
         for (String alias : aliases()) {
             keyword = Keyword.of(alias);
-            register(keyword);
+            register(keyword, force);
         }
     }
 
@@ -115,12 +119,12 @@ public abstract class NamedLogic<T extends NamedLogic> extends LogSupport implem
         return C.list();
     }
 
-    protected final Keyword keyword() {
+    protected Keyword keyword() {
         String name = getClass().getSimpleName();
         return Keyword.of(name);
     }
 
-    private void register(Keyword keyword) {
+    private void register(Keyword keyword, boolean force) {
         Class<? extends NamedLogic> type = type();
         Map<Keyword, NamedLogic> lookup = registry.get(type);
         if (null == lookup) {
@@ -128,7 +132,7 @@ public abstract class NamedLogic<T extends NamedLogic> extends LogSupport implem
             registry.put(type, lookup);
         }
         NamedLogic existing = lookup.put(keyword, this);
-        E.unexpectedIf(null != existing, "Keyword already used: " + keyword.hyphenated());
+        E.unexpectedIf(!force && null != existing, "Keyword already used: " + keyword.hyphenated());
     }
 
     private static <T extends NamedLogic> T get(Class<? extends NamedLogic> logicType, String name) {

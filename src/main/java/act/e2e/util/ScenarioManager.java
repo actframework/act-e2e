@@ -36,7 +36,7 @@ import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
@@ -47,7 +47,7 @@ public class ScenarioManager extends YamlLoader {
 
     private static DaoLocator NULL_DAO = new NullDaoLocator();
 
-    private Map<Keyword, Scenario> store = new HashMap<>();
+    private Map<Keyword, Scenario> store = new LinkedHashMap<>();
 
     public ScenarioManager() {
         super("act.e2e");
@@ -70,7 +70,7 @@ public class ScenarioManager extends YamlLoader {
     public Map<String, Scenario> load() {
         loadDefault();
         searchScenarioFolder();
-        Map<String, Scenario> scenarioMap = new HashMap<>();
+        Map<String, Scenario> scenarioMap = new LinkedHashMap<>();
         for (Map.Entry<Keyword, Scenario> entry : store.entrySet()) {
             scenarioMap.put(entry.getKey().hyphenated(), entry.getValue());
         }

@@ -22,9 +22,12 @@ package act.e2e.func;
 
 import act.e2e.util.NamedLogic;
 import org.osgl.$;
+import org.osgl.util.C;
 import org.osgl.util.N;
 import org.osgl.util.S;
 import org.osgl.util.converter.TypeConverterRegistry;
+
+import java.util.List;
 
 public abstract class Func<T extends Func> extends NamedLogic<T> {
 
@@ -43,13 +46,94 @@ public abstract class Func<T extends Func> extends NamedLogic<T> {
                 try {
                     length = $.convert(initVal).toInt();
                 } catch (Exception e) {
-                    warn(e, "RandomStr func init value shall be evauated to an integer, found: " + initVal);
+                    warn(e, "RandomStr func init value (max length) shall be evaluated to an integer, found: " + initVal);
                 }
             }
             if (length < 1) {
                 length = 5 + N.randInt(10);
             }
             return S.random(length);
+        }
+
+        @Override
+        protected List<String> aliases() {
+            return C.list("randStr", "randomString", "randString");
+        }
+    }
+
+    public static class RandomInt extends Func<RandomInt> {
+        @Override
+        public Object apply() {
+            int max = 0;
+            boolean positive = true;
+            if (null != initVal) {
+                try {
+                    max = $.convert(initVal).toInt();
+                    if (max < 0) {
+                        positive = false;
+                        max = -max;
+                    }
+                } catch (Exception e) {
+                    warn(e, "RandomInt func init value (max) shall be evaluated to an integer, found: " + initVal);
+                }
+            }
+            if (max == 0) {
+                max = 100;
+            }
+            int retVal = N.randInt(max);
+            if (!positive) {
+                retVal = -retVal;
+            }
+            return retVal;
+        }
+
+        @Override
+        protected List<String> aliases() {
+            return C.list("randInt", "randomInteger", "randInteger");
+        }
+    }
+
+    public static class RandomBoolean extends Func<RandomBoolean> {
+        @Override
+        public Object apply() {
+            return $.random(true, false);
+        }
+
+        @Override
+        protected List<String> aliases() {
+            return C.list("randBoolean", "randomBool", "randBool");
+        }
+    }
+
+    public static class RandomLong extends Func<RandomLong> {
+        @Override
+        public Object apply() {
+            long max = 0;
+            boolean positive = true;
+            if (null != initVal) {
+                try {
+                    max = $.convert(initVal).toLong();
+                    if (max < 0) {
+                        positive = false;
+                        max = -max;
+                    }
+                } catch (Exception e) {
+                    warn(e, "RandomLong func init value (max) shall be evaluated to an long, found: " + initVal);
+                }
+            }
+            if (max == 0) {
+                max = 100000L;
+            }
+            long retVal = N.randLong(max);
+            if (!positive) {
+                retVal = -retVal;
+            }
+            return retVal;
+        }
+
+        @Override
+        protected List<String> aliases() {
+            return C.list("randLong");
         }
     }
 

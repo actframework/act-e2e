@@ -20,6 +20,7 @@ package act.e2e.macro;
  * #L%
  */
 
+import act.app.App;
 import act.e2e.Scenario;
 import act.e2e.util.NamedLogic;
 import org.osgl.$;
@@ -30,6 +31,7 @@ import org.osgl.util.S;
 import org.osgl.util.converter.TypeConverterRegistry;
 
 import java.io.File;
+import java.net.URL;
 import java.util.List;
 
 public abstract class Macro<T extends Macro> extends NamedLogic<T> {
@@ -50,7 +52,7 @@ public abstract class Macro<T extends Macro> extends NamedLogic<T> {
 
         @Override
         protected List<String> aliases() {
-            return C.listOf("clear-data", "reset");
+            return C.listOf("clear-data");
         }
     }
 
@@ -70,9 +72,23 @@ public abstract class Macro<T extends Macro> extends NamedLogic<T> {
         public void run(Scenario scenario) {
             String fileName = (String) initVal;
             File file = new File(fileName);
-            E.unexpectedIf(!file.exists() || !file.canRead(), "File not exists or not readable: " + fileName);
-            String content = IO.read(file).toString();
+            String content;
+            if (file.exists() && file.canRead()) {
+                content = IO.read(file).toString();
+            } else {
+                URL url = App.class.getResource(fileName);
+                if (null == url) {
+                    url = App.class.getClassLoader().getResource(fileName);
+                }
+                E.unexpectedIf(null == url, "Cannot find file or resource by " + fileName);
+                content = IO.read(url).toString();
+            }
             scenario.cache(S.underscore(fileName), content);
+        }
+
+        @Override
+        protected List<String> aliases() {
+            return C.list("readFile", "readResource", "readFrom");
         }
     }
 
@@ -83,7 +99,7 @@ public abstract class Macro<T extends Macro> extends NamedLogic<T> {
         @Override
         public void init(Object param) {
             time = $.convert(param).toLong();
-            E.illegalArgumentIf(time <=0);
+            E.illegalArgumentIf(time < 1);
         }
 
         @Override
@@ -91,8 +107,14 @@ public abstract class Macro<T extends Macro> extends NamedLogic<T> {
             try {
                 Thread.sleep(time);
             } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
                 throw E.unexpected(e);
             }
+        }
+
+        @Override
+        protected List<String> aliases() {
+            return C.list("sleep");
         }
     }
 

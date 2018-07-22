@@ -171,7 +171,13 @@ public class E2E extends LogSupport {
             } else {
                 C.List<Scenario> list = C.list(scenarios.values()).sorted(new ScenarioComparator(scenarioManager));
                 for (Scenario scenario : list) {
-                    scenario.start(scenarioManager, requestTemplateManager);
+                    try {
+                        scenario.start(scenarioManager, requestTemplateManager);
+                    } catch (Exception e) {
+                        scenario.errorMessage = e.getMessage();
+                        scenario.cause = e.getCause();
+                        scenario.status = E2EStatus.FAIL;
+                    }
                 }
             }
             List<Scenario> list = new ArrayList<>();

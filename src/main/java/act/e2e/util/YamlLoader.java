@@ -39,6 +39,7 @@ import org.yaml.snakeyaml.Yaml;
 
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -131,7 +132,7 @@ public class YamlLoader {
         Map<Object, Map<?, ?>> objects = $.cast(o);
         resolveConstants(objects);
         Map<String, Map<String, Object>> mapCache = C.newMap();
-        Map<String, Object> entityCache = C.newMap();
+        Map<String, Object> entityCache = new LinkedHashMap<>();
         Map<String, Class> classCache = C.newMap();
         Map<String, AtomicInteger> nameCounters = C.newMap();
         for (Object key : objects.keySet()) {

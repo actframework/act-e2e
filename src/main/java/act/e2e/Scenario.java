@@ -288,8 +288,8 @@ public class Scenario implements ScenarioPart {
 
     @Override
     public void validate(Scenario scenario) throws UnexpectedException {
-        errorIf(interactions.isEmpty(), "No interactions");
         errorIf(S.blank(name), "Scenario name not defined");
+        errorIf(interactions.isEmpty(), "No interactions defined in Scenario[%s]", scenario.name);
         for (Interaction interaction : interactions) {
             interaction.validate(scenario);
         }
@@ -333,6 +333,7 @@ public class Scenario implements ScenarioPart {
                 break;
             case 1:
                 func.init(vals.get(0));
+                break;
             default:
                 func.init(vals);
         }
