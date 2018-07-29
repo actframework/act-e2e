@@ -40,7 +40,6 @@
 
   <properties>
     <scm.url>git@github.com:actframework/act-e2e.git</scm.url>
-    <snakeyaml.version>1.21</snakeyaml.version>
     <jsoup.version>1.11.3</jsoup.version>
     <act-sql-common.version>1.4.2</act-sql-common.version>
   </properties>
@@ -52,12 +51,6 @@
   </scm>
 
   <dependencies>
-
-    <dependency>
-      <groupId>org.yaml</groupId>
-      <artifactId>snakeyaml</artifactId>
-      <version>${snakeyaml.version}</version>
-    </dependency>
 
     <dependency>
       <groupId>org.jsoup</groupId>

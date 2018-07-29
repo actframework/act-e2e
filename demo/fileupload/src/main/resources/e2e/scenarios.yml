@@ -1,0 +1,19 @@
+Scenario(Upload Service):
+  interactions:
+    - description: Upload a file
+      request:
+        accept: json
+        url: /
+        method: post
+        parts:
+          file: app.hlp
+      response:
+        json:
+          result:
+            - exists: true
+    - description: Download uploaded file
+      request:
+        url: /${last:result}
+        method: get
+      response:
+        checksum: last-checksum

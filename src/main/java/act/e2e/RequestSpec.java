@@ -47,6 +47,7 @@ public class RequestSpec implements InteractionPart {
     public List<RequestModifier> modifiers = new ArrayList<>();
     public Map<String, Object> params = new LinkedHashMap<>();
     public Map<String, Object> headers = new LinkedHashMap<>();
+    public Map<String, Object> parts = new LinkedHashMap<>();
     public Object json;
 
     private boolean resolved;

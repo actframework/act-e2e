@@ -148,7 +148,7 @@ public class Interaction implements ScenarioPart {
             String headerName = entry.getKey();
             String headerVal = resp.header(headerName);
             try {
-                Scenario.get().verifyValue(headerVal, entry.getValue());
+                Scenario.get().verifyValue(headerName, headerVal, entry.getValue());
             } catch (Exception e) {
                 error(e, S.concat("Failed verifying header[", headerName, "]: ", e.getMessage()));
             }
@@ -157,8 +157,12 @@ public class Interaction implements ScenarioPart {
     }
 
     private void verifyBody(Response rs) throws Exception {
-        String bodyString = S.string(rs.body().string()).trim();
-        Scenario.get().verifyBody(bodyString, response);
+        if (null != response && S.notBlank(response.checksum)) {
+            Scenario.get().verifyDownload(rs, response.checksum);
+        } else {
+            String bodyString = S.string(rs.body().string()).trim();
+            Scenario.get().verifyBody(bodyString, response);
+        }
     }
 
     private H.Status expectedStatus() {

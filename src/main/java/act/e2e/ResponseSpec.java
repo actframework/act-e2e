@@ -33,6 +33,7 @@ public class ResponseSpec implements InteractionPart {
     public LinkedHashMap<String, Object> html = new LinkedHashMap<>();
     public LinkedHashMap<String, Object> json = new LinkedHashMap<>();
     public LinkedHashMap<String, Object> headers = new LinkedHashMap<>();
+    public String checksum;
 
     @Override
     public void validate(Interaction interaction) throws UnexpectedException {
@@ -58,6 +59,9 @@ public class ResponseSpec implements InteractionPart {
             return;
         }
         if (!headers.isEmpty()) {
+            return;
+        }
+        if (null != checksum) {
             return;
         }
         throw new UnexpectedException("Empty response spec found in interaction[%s]", interaction);

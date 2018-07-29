@@ -24,6 +24,7 @@ import static act.e2e.E2EStatus.PENDING;
 import static act.e2e.util.ErrorMessage.*;
 import static org.osgl.http.H.Header.Names.ACCEPT;
 import static org.osgl.http.H.Header.Names.X_REQUESTED_WITH;
+import static org.osgl.http.H.Method.POST;
 
 import act.Act;
 import act.app.App;
@@ -34,6 +35,7 @@ import act.e2e.util.JSONTraverser;
 import act.e2e.util.RequestTemplateManager;
 import act.e2e.util.ScenarioManager;
 import act.e2e.verifier.Verifier;
+import act.handler.builtin.FileGetter;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
@@ -113,6 +115,10 @@ public class Scenario implements ScenarioPart {
             if (hasParams) {
                 processParamSubstitution(requestSpec.params);
             }
+            boolean hasParts = !hasParams && POST == requestSpec.method && !requestSpec.parts.isEmpty();
+            if (hasParts) {
+                processParamSubstitution(requestSpec.parts);
+            }
             switch (requestSpec.method) {
                 case GET:
                 case HEAD:
@@ -139,9 +145,30 @@ public class Scenario implements ScenarioPart {
                     if (S.notBlank(jsonBody)) {
                         body = RequestBody.create(MediaType.parse("application/json"), jsonBody);
                     } else if (hasParams) {
-                        MultipartBody.Builder formBuilder = new MultipartBody.Builder();
+                        FormBody.Builder formBuilder = new FormBody.Builder();
                         for (Map.Entry<String, Object> entry : requestSpec.params.entrySet()) {
-                            formBuilder.addFormDataPart(entry.getKey(), S.string(entry.getValue()));
+                            formBuilder.add(entry.getKey(), S.string(entry.getValue()));
+                        }
+                        body = formBuilder.build();
+                    } else if (hasParts) {
+                        MultipartBody.Builder formBuilder = new MultipartBody.Builder();
+                        for (Map.Entry<String, Object> entry : requestSpec.parts.entrySet()) {
+                            String key = entry.getKey();
+                            String val = S.string(entry.getValue());
+                            String path = S.pathConcat("e2e/upload", '/', val);
+                            URL fileUrl = Act.getResource(path);
+                            if (null != fileUrl) {
+                                String filePath = fileUrl.getFile();
+                                H.Format fileFormat = FileGetter.contentType(filePath);
+                                byte[] content = $.convert(fileUrl).to(byte[].class);
+                                String checksum = IO.checksum(content);
+                                RequestBody fileBody = RequestBody.create(MediaType.parse(fileFormat.contentType()), content);
+                                formBuilder.addFormDataPart(key, S.cut(filePath).afterLast("/"), fileBody);
+                                cache("checksum-last", checksum);
+                                cache("checksum-" + val, checksum);
+                            } else {
+                                formBuilder.addFormDataPart(key, val);
+                            }
                         }
                         body = formBuilder.build();
                     }
@@ -305,7 +332,9 @@ public class Scenario implements ScenarioPart {
                 String expr = S.strip(sVal).of("${", "}");
                 value = eval(expr);
             }
-            constants.put(S.underscore(entry.getKey()), value);
+            String key = entry.getKey();
+            constants.remove(key);
+            constants.put(S.underscore(key), value);
         }
     }
 
@@ -483,6 +512,18 @@ public class Scenario implements ScenarioPart {
         return cookieStore;
     }
 
+    void verifyDownload(Response response, String checksum) {
+        Object o = cached(checksum);
+        if (null == o) {
+            o = cached("checksum-last");
+        }
+        if (null == o) {
+            o = checksum;
+        }
+        String downloadChecksum = IO.checksum(response.body().byteStream());
+        errorIfNot($.eq(downloadChecksum, o), "Download checksum not match");
+    }
+
     void verifyBody(String bodyString, ResponseSpec spec) {
         lastData.set(bodyString);
         if (null == spec) {
@@ -496,12 +537,12 @@ public class Scenario implements ScenarioPart {
             return;
         }
         if (null != spec.text) {
-            verifyValue(bodyString, spec.text);
+            verifyValue("body text", bodyString, spec.text);
         } else if (null != spec.json && !spec.json.isEmpty()) {
             if (bodyString.startsWith("[")) {
                 JSONArray array = JSON.parseArray(bodyString);
                 lastData.set(array);
-                verifyList(array, spec.json);
+                verifyList("body json array", array, spec.json);
             } else if (bodyString.startsWith("{")) {
                 JSONObject obj = JSON.parseObject(bodyString);
                 lastData.set(obj);
@@ -515,12 +556,12 @@ public class Scenario implements ScenarioPart {
             for (Map.Entry<String, Object> entry : spec.html.entrySet()) {
                 String path = entry.getKey();
                 Elements elements = doc.select(path);
-                verifyValue(elements, entry.getValue());
+                verifyValue("body html path", elements, entry.getValue());
             }
         }
     }
 
-    void verifyList(List array, Map<String, Object> spec) {
+    void verifyList(String name, List array, Map<String, Object> spec) {
         for (Map.Entry<String, Object> entry : spec.entrySet()) {
             String key = entry.getKey();
             Object test = entry.getValue();
@@ -532,7 +573,7 @@ public class Scenario implements ScenarioPart {
             } else if ("?".equals(key) || "<any>".equalsIgnoreCase(key)) {
                 for (Object arrayElement : array) {
                     try {
-                        verifyValue(arrayElement, test);
+                        verifyValue(name, arrayElement, test);
                         return;
                     } catch (Exception e) {
                         // try next one
@@ -551,7 +592,7 @@ public class Scenario implements ScenarioPart {
                                 continue;
                             }
                             try {
-                                verifyValue(((JSONObject) arrayElement).get(prop), test);
+                                verifyValue(prop, ((JSONObject) arrayElement).get(prop), test);
                                 return;
                             } catch (Exception e) {
                                 // try next one
@@ -570,7 +611,7 @@ public class Scenario implements ScenarioPart {
                     throw error("Unknown attribute of array verification: %s", key);
                 }
             }
-            verifyValue(value, test);
+            verifyValue(name, value, test);
         }
     }
 
@@ -578,32 +619,32 @@ public class Scenario implements ScenarioPart {
         for (Map.Entry<String, Object> entry : jsonSpec.entrySet()) {
             String key = entry.getKey();
             Object value = $.getProperty(obj, key);
-            verifyValue(value, entry.getValue());
+            verifyValue(key, value, entry.getValue());
         }
     }
 
-    void verifyValue(Object value, Object test) {
+    void verifyValue(String name, Object value, Object test) {
         if (test instanceof List) {
-            verifyValue_(value, (List) test);
+            verifyValue_(name, value, (List) test);
         } else if (value instanceof List && test instanceof Map) {
-            verifyList((List) value, (Map) test);
+            verifyList(name, (List) value, (Map) test);
         } else {
             if (matches(value, test)) {
                 return;
             }
             if (value instanceof JSONObject) {
-                errorIfNot(test instanceof Map, "Cannot verify value[%s] with test [%s]", value, test);
+                errorIfNot(test instanceof Map, "Cannot verify %s value[%s] with test [%s]", name, value, test);
                 JSONObject json = (JSONObject) value;
                 Map<String, ?> testMap = (Map) test;
                 for (Map.Entry<?, ?> entry : testMap.entrySet()) {
                     Object testKey = entry.getKey();
                     Object testValue = entry.getValue();
                     Object attr = json.get(testKey);
-                    verifyValue(attr, testValue);
+                    verifyValue(S.concat(name, ".", testKey), attr, testValue);
                 }
             } else if (value instanceof Elements) {
                 if (test instanceof Map) {
-                    verifyList((Elements) value, (Map) test);
+                    verifyList(name, (Elements) value, (Map) test);
                 } else {
                     Elements elements = (Elements) value;
                     if (elements.isEmpty()) {
@@ -611,7 +652,7 @@ public class Scenario implements ScenarioPart {
                     } else {
                         value = elements.first();
                     }
-                    verifyValue(value, test);
+                    verifyValue(name, value, test);
                 }
             } else if (value instanceof Number) {
                 Number found = (Number) value;
@@ -623,12 +664,12 @@ public class Scenario implements ScenarioPart {
                     if (S.isNumeric(s)) {
                         expected = $.convert(s).to(Double.class);
                     } else {
-                        error("Cannot verify value[%s] against test [%s]", value, test);
+                        error("Cannot verify %s value[%s] against test [%s]", name, value, test);
                     }
                 }
                 double delta = Math.abs(expected.doubleValue() - found.doubleValue());
                 if ((delta / found.doubleValue()) > 0.001) {
-                    error("Cannot verify value[%s] against test [%s]", value, test);
+                    error("Cannot verify %s value[%s] against test [%s]", name, value, test);
                 }
             } else {
                 // try convert the test into String
@@ -641,7 +682,7 @@ public class Scenario implements ScenarioPart {
                 }
                 try {
                     Pattern p = Pattern.compile(testString);
-                    errorIfNot(p.matcher(S.string(value)).matches(), "Cannot verify value[%s] with test [%s]", value, test);
+                    errorIfNot(p.matcher(S.string(value)).matches(), "Cannot verify %s value[%s] with test [%s]", name, value, test);
                     return;
                 } catch (Exception e) {
                     // ignore
@@ -650,12 +691,12 @@ public class Scenario implements ScenarioPart {
                 if (null != v && v.verify(value)) {
                     return;
                 }
-                error("Cannot verify value[%s] with test [%s]", value, test);
+                error("Cannot verify %s value[%s] with test [%s]", name, value, test);
             }
         }
     }
 
-    private void verifyValue_(Object value, List tests) {
+    private void verifyValue_(String name, Object value, List tests) {
         // try to do the literal match
         if (value instanceof List) {
             List found = (List) value;
@@ -684,12 +725,12 @@ public class Scenario implements ScenarioPart {
             }
         }
         for (Object test : tests) {
-            errorIfNot(test instanceof Map, "Cannot verify value[%s] against test[%s]", value, test);
+            errorIfNot(test instanceof Map, "Cannot verify %s value[%s] against test[%s]", name, value, test);
             Map<?, ?> map = (Map) test;
-            errorIfNot(map.size() == 1, "Cannot verify value[%s] against test[%s]", value, test);
+            errorIfNot(map.size() == 1, "Cannot verify %s value[%s] against test[%s]", name, value, test);
             Verifier v = $.convert(map).to(Verifier.class);
-            errorIf(null == v, "Cannot verify value[%s] against test[%s]", value, test);
-            errorIf(!verify(v, value), "Cannot verify value[%s] against test[%s]", value, v);
+            errorIf(null == v, "Cannot verify %s value[%s] against test[%s]", name, value, test);
+            errorIf(!verify(v, value), "Cannot verify %s value[%s] against test[%s]", name, value, v);
         }
     }
 

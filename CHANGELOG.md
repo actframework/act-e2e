@@ -1,6 +1,7 @@
 # act-e2e CHANGE LOG
 
 1.1.0
+* Support file upload test #42
 * Add more random functions #41
 * Scenario report shall list scenarios in the order that is defined in `scenario.yml` file #40
 * `scenario.yml`: json part shall go through request param substitution also #39
