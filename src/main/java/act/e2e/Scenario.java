@@ -198,37 +198,6 @@ public class Scenario implements ScenarioPart {
             }
         }
 
-        private String processStringSubstitution(String s) {
-            int n = s.indexOf("${");
-            if (n < 0) {
-                return s;
-            }
-            int a = 0;
-            int z = n;
-            S.Buffer buf = S.buffer();
-            while (true) {
-                buf.append(s.substring(a, z));
-                n = s.indexOf("}", z);
-                a = n;
-                E.illegalArgumentIf(n < -1, "Invalid string: " + s);
-                String part = s.substring(z + 2, a);
-                String key = part;
-                String payload = "";
-                if (part.contains(":")) {
-                    S.Binary binary = S.binarySplit(part, ':');
-                    key = binary.first();
-                    payload = binary.second();
-                }
-                buf.append(getVal(key, payload));
-                n = s.indexOf("${", a);
-                if (n < 0) {
-                    buf.append(s.substring(a + 1));
-                    return buf.toString();
-                }
-                z = n;
-            }
-        }
-
         Request build() {
             return builder.build();
         }
@@ -354,7 +323,12 @@ public class Scenario implements ScenarioPart {
             funcName = S.cut(funcExpr).beforeFirst("(");
             String paramStr = S.cut(funcExpr).afterFirst("(");
             paramStr = S.cut(paramStr).beforeLast(")");
-            vals = S.fastSplit(paramStr, ",");
+            vals = C.newList(S.fastSplit(paramStr, ","));
+            for (int i = 0; i < vals.size(); ++i) {
+                String val = vals.get(i).trim();
+                val = processStringSubstitution(val);
+                vals.set(i, val);
+            }
         }
         Func func = $.convert(funcName).to(Func.class);
         switch (vals.size()) {
@@ -674,26 +648,36 @@ public class Scenario implements ScenarioPart {
             } else {
                 // try convert the test into String
                 String testString = $.convert(test).toString();
-                if (matches(testString, value)) {
-                    return;
+                boolean verified = verifyStringValue_(testString, value, test);
+                if (!verified) {
+                    String processedString = processStringSubstitution(testString);
+                    if (S.neq(processedString, testString)) {
+                        verified = verifyStringValue_(processedString, value, test);
+                    }
                 }
-                if (null != value && ("*".equals(test) || "...".equals(test) || "<any>".equals(test))) {
-                    return;
-                }
-                try {
-                    Pattern p = Pattern.compile(testString);
-                    errorIfNot(p.matcher(S.string(value)).matches(), "Cannot verify %s value[%s] with test [%s]", name, value, test);
-                    return;
-                } catch (Exception e) {
-                    // ignore
-                }
-                Verifier v = tryLoadVerifier(testString);
-                if (null != v && v.verify(value)) {
-                    return;
-                }
-                error("Cannot verify %s value[%s] with test [%s]", name, value, test);
+                errorIfNot(verified, "Cannot verify %s value[%s] with test [%s]", name, value, test);
             }
         }
+    }
+
+    private boolean verifyStringValue_(String testString, Object value, Object test) {
+        if (matches(testString, value)) {
+            return true;
+        }
+        if (null != value && ("*".equals(test) || "...".equals(test) || "<any>".equals(test))) {
+            return true;
+        }
+        try {
+            Pattern p = Pattern.compile(testString);
+            return p.matcher(S.string(value)).matches();
+        } catch (Exception e) {
+            // ignore
+        }
+        Verifier v = tryLoadVerifier(testString);
+        if (null != v && v.verify(value)) {
+            return true;
+        }
+        return false;
     }
 
     private void verifyValue_(String name, Object value, List tests) {
@@ -728,6 +712,15 @@ public class Scenario implements ScenarioPart {
             errorIfNot(test instanceof Map, "Cannot verify %s value[%s] against test[%s]", name, value, test);
             Map<?, ?> map = (Map) test;
             errorIfNot(map.size() == 1, "Cannot verify %s value[%s] against test[%s]", name, value, test);
+            Map.Entry entry = map.entrySet().iterator().next();
+            Object entryValue = entry.getValue();
+            if (entryValue instanceof String) {
+                String s = (String) entryValue;
+                String processed = processStringSubstitution(s);
+                if (S.neq(processed, s)) {
+                    entry.setValue(processed);
+                }
+            }
             Verifier v = $.convert(map).to(Verifier.class);
             errorIf(null == v, "Cannot verify %s value[%s] against test[%s]", name, value, test);
             errorIf(!verify(v, value), "Cannot verify %s value[%s] against test[%s]", name, value, v);
@@ -819,6 +812,37 @@ public class Scenario implements ScenarioPart {
             return o;
         }
         return E2E.constant(key);
+    }
+
+    private String processStringSubstitution(String s) {
+        int n = s.indexOf("${");
+        if (n < 0) {
+            return s;
+        }
+        int a = 0;
+        int z = n;
+        S.Buffer buf = S.buffer();
+        while (true) {
+            buf.append(s.substring(a, z));
+            n = s.indexOf("}", z);
+            a = n;
+            E.illegalArgumentIf(n < -1, "Invalid string: " + s);
+            String part = s.substring(z + 2, a);
+            String key = part;
+            String payload = "";
+            if (part.contains(":")) {
+                S.Binary binary = S.binarySplit(part, ':');
+                key = binary.first();
+                payload = binary.second();
+            }
+            buf.append(getVal(key, payload));
+            n = s.indexOf("${", a);
+            if (n < 0) {
+                buf.append(s.substring(a + 1));
+                return buf.toString();
+            }
+            z = n;
+        }
     }
 
     private Object getLastVal(String ref) {

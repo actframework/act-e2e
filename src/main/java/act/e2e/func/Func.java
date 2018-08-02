@@ -23,6 +23,7 @@ package act.e2e.func;
 import act.e2e.util.NamedLogic;
 import org.osgl.$;
 import org.osgl.util.C;
+import org.osgl.util.E;
 import org.osgl.util.N;
 import org.osgl.util.S;
 import org.osgl.util.converter.TypeConverterRegistry;
@@ -37,6 +38,43 @@ public abstract class Func<T extends Func> extends NamedLogic<T> {
     }
 
     public abstract Object apply();
+
+    public static class SubStr extends Func<SubStr> {
+
+        private String targetStr;
+
+        @Override
+        public void init(Object param) {
+            E.illegalArgumentIfNot(param instanceof List, "At least 2 parameters expected for subStr function");
+            List<String> params = (List<String>) param;
+            targetStr = S.ensure(params.get(0)).strippedOff(S.DOUBLE_QUOTES);
+            String sBegin = params.get(1);
+            E.illegalArgumentIfNot(S.isInt(sBegin), "the 2nd parameter must be valid integer");
+            int begin = Integer.parseInt(sBegin);
+            E.illegalArgumentIf(begin < 0, "the 2nd parameter must be valid integer");
+            int end = -1;
+            if (params.size() > 2) {
+                String sEnd = params.get(2);
+                E.illegalArgumentIfNot(S.isInt(sEnd), "the 3nd parameter must be valid integer");
+                end = Integer.parseInt(sEnd);
+                E.illegalArgumentIf(end < begin, "the 3nd parameter not be less than the 2nd parameter");
+                if (end > targetStr.length()) {
+                    end = targetStr.length();
+                }
+            }
+            targetStr = -1 == end ? targetStr.substring(begin) : targetStr.substring(begin, end);
+        }
+
+        @Override
+        public Object apply() {
+            return targetStr;
+        }
+
+        @Override
+        protected List<String> aliases() {
+            return C.list("subString", "substr");
+        }
+    }
 
     public static class RandomStr extends Func<RandomStr> {
         @Override

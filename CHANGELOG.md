@@ -1,6 +1,10 @@
 # act-e2e CHANGE LOG
 
 1.1.0
+* Add `SubStr` function #46
+* Add `eqIgnoreCase` verifier #45
+* Support embedded reference in function #44
+* Make it possible to do evaluation for response verification #43
 * Support file upload test #42
 * Add more random functions #41
 * Scenario report shall list scenarios in the order that is defined in `scenario.yml` file #40

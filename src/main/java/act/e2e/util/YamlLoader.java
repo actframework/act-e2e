@@ -26,6 +26,7 @@ import act.app.DaoLocator;
 import act.conf.AppConfig;
 import act.db.Dao;
 import act.e2e.E2E;
+import act.util.LogSupport;
 import com.alibaba.fastjson.JSONObject;
 import org.osgl.$;
 import org.osgl.Lang;
@@ -46,7 +47,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class YamlLoader {
+public class YamlLoader extends LogSupport {
 
     static Pattern keyPattern = Pattern.compile("([^(]+)\\(([^)]+)\\)");
 

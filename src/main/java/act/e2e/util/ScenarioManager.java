@@ -26,10 +26,10 @@ import act.app.DaoLocator;
 import act.app.RuntimeDirs;
 import act.e2e.Scenario;
 import org.osgl.$;
-import org.osgl.logging.Logger;
 import org.osgl.util.C;
 import org.osgl.util.IO;
 import org.osgl.util.Keyword;
+import org.osgl.util.S;
 
 import java.io.File;
 import java.io.FilenameFilter;
@@ -42,8 +42,6 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
 public class ScenarioManager extends YamlLoader {
-
-    private Logger logger = Act.LOGGER;
 
     private static DaoLocator NULL_DAO = new NullDaoLocator();
 
@@ -143,10 +141,14 @@ public class ScenarioManager extends YamlLoader {
         }
         for (File file : ymlFiles) {
             String content = IO.read(file).toString();
+            if (S.blank(content)) {
+                warn("Empty yaml file found: " + file.getPath());
+                continue;
+            }
             try {
                 parseOne(content);
             } catch (RuntimeException e) {
-                logger.error(e, "Error parsing scenario file: %s", file.getName());
+                error(e, "Error parsing scenario file: %s", file.getName());
                 throw e;
             }
         }
@@ -163,7 +165,7 @@ public class ScenarioManager extends YamlLoader {
                 }
             }
         } catch (IOException e) {
-            logger.warn(e, "Error loading scenario from jar file");
+            warn(e, "Error loading scenario from jar file");
         }
     }
 
