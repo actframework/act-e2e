@@ -39,6 +39,18 @@ public abstract class Func<T extends Func> extends NamedLogic<T> {
 
     public abstract Object apply();
 
+    /**
+     * Apply subString function to given string.
+     *
+     * If one param is provided it must be an integer which specify the
+     * begin index of the substr.
+     *
+     * If two parameters are provided, the second one specify the end
+     * index (exclusive) of the substr.
+     *
+     * @see String#substring(int)
+     * @see String#substring(int, int)
+     */
     public static class SubStr extends Func<SubStr> {
 
         private String targetStr;
@@ -76,6 +88,41 @@ public abstract class Func<T extends Func> extends NamedLogic<T> {
         }
     }
 
+    /**
+     * Random pick up from a list of parameters.
+     */
+    public static class RandomOf extends Func<RandomOf> {
+
+        private boolean isList;
+        private List list;
+
+        @Override
+        public void init(Object param) {
+            super.init(param);
+            isList = param instanceof List;
+            if (isList) {
+                list = (List) param;
+            }
+        }
+
+        @Override
+        public Object apply() {
+            return isList ? $.random(list) : initVal;
+        }
+
+        @Override
+        protected List<String> aliases() {
+            return C.list("randOf", "randSelect", "randomSelect", "pickOne");
+        }
+    }
+
+    /**
+     * Generate random string.
+     *
+     * If initVal is provided then it must be a positive integer which indicate
+     * the length of the random string. Otherwise the length will be any
+     * where between 5 and 15.
+     */
     public static class RandomStr extends Func<RandomStr> {
         @Override
         public Object apply() {
@@ -99,17 +146,44 @@ public abstract class Func<T extends Func> extends NamedLogic<T> {
         }
     }
 
+    /**
+     * Generate random int value.
+     *
+     * If initVal is provided then
+     * - if there is 1 init val, it specify the ceiling of the random integer
+     * - if there are 2 values, the first is the bottom of the random val and the second is the ceiling of the val
+     */
     public static class RandomInt extends Func<RandomInt> {
         @Override
         public Object apply() {
             int max = 0;
             boolean positive = true;
+            int min = 0;
             if (null != initVal) {
+                Object ceilling = initVal;
+                if (initVal instanceof List) {
+                    List list = (List) initVal;
+                    Object bottom = list.get(0);
+                    min = $.convert(bottom).toInt();
+                    ceilling = list.get(1);
+                }
                 try {
-                    max = $.convert(initVal).toInt();
+                    max = $.convert(ceilling).toInt();
                     if (max < 0) {
                         positive = false;
-                        max = -max;
+                        if (max > min) {
+                            int tmp = min;
+                            min = max;
+                            max = tmp;
+                        }
+                        max = min - max;
+                    } else {
+                        if (max < min) {
+                            int tmp = min;
+                            min = max;
+                            max = tmp;
+                        }
+                        max = max - min;
                     }
                 } catch (Exception e) {
                     warn(e, "RandomInt func init value (max) shall be evaluated to an integer, found: " + initVal);
@@ -122,6 +196,7 @@ public abstract class Func<T extends Func> extends NamedLogic<T> {
             if (!positive) {
                 retVal = -retVal;
             }
+            retVal += min;
             return retVal;
         }
 
@@ -131,6 +206,9 @@ public abstract class Func<T extends Func> extends NamedLogic<T> {
         }
     }
 
+    /**
+     * Generate random `true`, `false`
+     */
     public static class RandomBoolean extends Func<RandomBoolean> {
         @Override
         public Object apply() {
@@ -143,17 +221,44 @@ public abstract class Func<T extends Func> extends NamedLogic<T> {
         }
     }
 
+    /**
+     * Generate random long value.
+     *
+     * If initVal is provided then
+     * - if there is 1 init val, it specify the ceiling of the random long value
+     * - if there are 2 values, the first is the bottom of the random val and the second is the ceiling of the val
+     */
     public static class RandomLong extends Func<RandomLong> {
         @Override
         public Object apply() {
             long max = 0;
+            long min = 0;
             boolean positive = true;
             if (null != initVal) {
+                Object ceilling = initVal;
+                if (initVal instanceof List) {
+                    List list = (List) initVal;
+                    Object bottom = list.get(0);
+                    min = $.convert(bottom).toLong();
+                    ceilling = list.get(1);
+                }
                 try {
-                    max = $.convert(initVal).toLong();
+                    max = $.convert(ceilling).toLong();
                     if (max < 0) {
                         positive = false;
-                        max = -max;
+                        if (max > min) {
+                            long tmp = min;
+                            min = max;
+                            max = tmp;
+                        }
+                        max = min - max;
+                    } else {
+                        if (max < min) {
+                            long tmp = min;
+                            min = max;
+                            max = tmp;
+                        }
+                        max = max - min;
                     }
                 } catch (Exception e) {
                     warn(e, "RandomLong func init value (max) shall be evaluated to an long, found: " + initVal);
@@ -166,6 +271,7 @@ public abstract class Func<T extends Func> extends NamedLogic<T> {
             if (!positive) {
                 retVal = -retVal;
             }
+            retVal += min;
             return retVal;
         }
 

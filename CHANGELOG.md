@@ -1,6 +1,8 @@
 # act-e2e CHANGE LOG
 
 1.1.0
+* Func enhancements #49
+* Simplify function declaration #47
 * Add `SubStr` function #46
 * Add `eqIgnoreCase` verifier #45
 * Support embedded reference in function #44

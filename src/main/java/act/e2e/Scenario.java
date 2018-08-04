@@ -310,6 +310,8 @@ public class Scenario implements ScenarioPart {
     private Object eval(String expr) {
         if (expr.startsWith("func:")) {
             return evalFunc(expr.substring(5));
+        } else if (expr.contains("(")) {
+            return evalFunc(expr);
         }
         String key = S.underscore(expr);
         Object o = constants.get(key);
@@ -323,11 +325,13 @@ public class Scenario implements ScenarioPart {
             funcName = S.cut(funcExpr).beforeFirst("(");
             String paramStr = S.cut(funcExpr).afterFirst("(");
             paramStr = S.cut(paramStr).beforeLast(")");
-            vals = C.newList(S.fastSplit(paramStr, ","));
-            for (int i = 0; i < vals.size(); ++i) {
-                String val = vals.get(i).trim();
-                val = processStringSubstitution(val);
-                vals.set(i, val);
+            if (S.notBlank(paramStr)) {
+                vals = C.newList(S.fastSplit(paramStr, ","));
+                for (int i = 0; i < vals.size(); ++i) {
+                    String val = vals.get(i).trim();
+                    val = processStringSubstitution(val);
+                    vals.set(i, val);
+                }
             }
         }
         Func func = $.convert(funcName).to(Func.class);
@@ -635,7 +639,8 @@ public class Scenario implements ScenarioPart {
                     expected = (Number) test;
                 } else {
                     String s = S.string(test);
-                    if (S.isNumeric(s)) {
+                    s = S.isNumeric(s) ? s : processStringSubstitution(s);
+                    if (S.isNumeric(S.string(s))) {
                         expected = $.convert(s).to(Double.class);
                     } else {
                         error("Cannot verify %s value[%s] against test [%s]", name, value, test);
@@ -811,7 +816,15 @@ public class Scenario implements ScenarioPart {
         if (null != o) {
             return o;
         }
-        return E2E.constant(key);
+        o = E2E.constant(key);
+        if (null != o) {
+            return o;
+        }
+        try {
+            return evalFunc(key);
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private String processStringSubstitution(String s) {
