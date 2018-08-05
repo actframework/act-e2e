@@ -1,6 +1,7 @@
 # act-e2e CHANGE LOG
 
 1.1.0
+* Extends constants pool from depending scenario #50
 * Func enhancements #49
 * Simplify function declaration #47
 * Add `SubStr` function #46

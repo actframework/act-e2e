@@ -453,6 +453,9 @@ public class Scenario implements ScenarioPart {
         lastData.set(dependent.lastData.get());
         cache.putAll(dependent.cache);
         http = dependent.http;
+        Map<String, Object> map = C.newMap(dependent.constants);
+        map.putAll(constants);
+        constants.putAll(map);
     }
 
     private boolean runInteractions() {
