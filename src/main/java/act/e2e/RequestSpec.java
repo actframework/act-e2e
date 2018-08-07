@@ -27,8 +27,7 @@ import act.e2e.util.RequestTemplateManager;
 import com.alibaba.fastjson.JSON;
 import org.osgl.exception.UnexpectedException;
 import org.osgl.http.H;
-import org.osgl.util.C;
-import org.osgl.util.E;
+import org.osgl.util.*;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -42,6 +41,14 @@ public class RequestSpec implements InteractionPart {
     public String parent;
     public H.Method method;
     public String url;
+    // shortcut for (GET, url) pair
+    public String get;
+    // shortcut for (POST, url) pair
+    public String post;
+    // shortcut for (PUT, url) pair
+    public String put;
+    // shortcut for (DELETE, url) pair
+    public String delete;
     public String accept;
     public Boolean ajax;
     public List<RequestModifier> modifiers = new ArrayList<>();
@@ -78,6 +85,19 @@ public class RequestSpec implements InteractionPart {
 
     @Override
     public void validate(Interaction interaction) throws UnexpectedException {
+        if (S.notBlank(get)) {
+            method = H.Method.GET;
+            url = get;
+        } else if (S.notBlank(post)) {
+            method = H.Method.POST;
+            url = post;
+        } else if (S.notBlank(put)) {
+            method = H.Method.PUT;
+            url = put;
+        } else if (S.notBlank(delete)) {
+            method = H.Method.DELETE;
+            url = delete;
+        }
         E.unexpectedIf(null == method, "method not specified in request spec of interaction[%s]", interaction);
         E.unexpectedIf(null == url, "url not specified in the request spec of interaction[%s]", interaction);
     }
