@@ -1,6 +1,7 @@
 # act-e2e CHANGE LOG
 
 1.1.0
+* `ClassCastException` on verifying list elements #53
 * Simplify RequestSpec declaration in scenario yaml file #51
 * Extends constants pool from depending scenario #50
 * Func enhancements #49

@@ -542,16 +542,18 @@ public class Scenario implements ScenarioPart {
         }
     }
 
-    void verifyList(String name, List array, Map<String, Object> spec) {
-        for (Map.Entry<String, Object> entry : spec.entrySet()) {
-            String key = entry.getKey();
+    void verifyList(String name, List array, Map spec) {
+        for (Object obj : spec.entrySet()) {
+            Map.Entry entry = $.cast(obj);
+            Object key = entry.getKey();
+            String sKey = S.string(key);
             Object test = entry.getValue();
             Object value = null;
             if ("size".equals(key) || "len".equals(key) || "length".equals(key)) {
                 value = array.size();
             } else if ("toString".equals(key) || "string".equals(key) || "str".equals(key)) {
                 value = JSON.toJSONString(array);
-            } else if ("?".equals(key) || "<any>".equalsIgnoreCase(key)) {
+            } else if ("?".equals(key) || "<any>".equalsIgnoreCase(sKey)) {
                 for (Object arrayElement : array) {
                     try {
                         verifyValue(name, arrayElement, test);
@@ -560,11 +562,11 @@ public class Scenario implements ScenarioPart {
                         // try next one
                     }
                 }
-            } else if (S.isInt(key)) {
-                int id = Integer.parseInt(key);
+            } else if (S.isInt(sKey)) {
+                int id = Integer.parseInt(sKey);
                 value = array.get(id);
             } else {
-                if (key.contains(".")) {
+                if (sKey.contains(".")) {
                     String id = S.cut(key).beforeFirst(".");
                     String prop = S.cut(key).afterFirst(".");
                     if ("?".equals(id) || "<any>".equalsIgnoreCase(id)) {
